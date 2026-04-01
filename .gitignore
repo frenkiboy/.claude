@@ -1,0 +1,22 @@
+# Credentials and secrets
+.credentials.json
+
+# Session data and history
+history.jsonl
+sessions/
+debug/
+file-history/
+backups/
+cache/
+paste-cache/
+shell-snapshots/
+stats-cache.json
+telemetry/
+todos/
+tasks/
+plans/
+
+# Project-specific data (contains conversation logs)
+projects/
+
+# Keep skills, settings, commands, plugins

@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "plugins": {
+    "code-review@claude-plugins-official": [
+      {
+        "scope": "project",
+        "projectPath": "/home/vfranke/gt/mayor",
+        "installPath": "/home/vfranke/.claude/plugins/cache/claude-plugins-official/code-review/261ce4fba4f2",
+        "version": "261ce4fba4f2",
+        "installedAt": "2026-02-06T12:44:08.280Z",
+        "lastUpdated": "2026-02-18T17:56:23.140Z",
+        "gitCommitSha": "236752ad9ab36029b648bfd94707944760242768"
+      }
+    ]
+  }
+}
