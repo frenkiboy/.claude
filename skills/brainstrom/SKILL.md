@@ -1,12 +1,17 @@
 ---
 name: brainstrom
-description: Extreme brainstorming mode. Reads the project and existing brainstorm.md, then proposes the wildest, most unconventional, and unexplored analytical directions — ideas that haven't been mentioned or considered yet.
+description: Extreme brainstorming mode. Reads the project and existing brainstorm.md, then proposes the wildest, most unconventional, and unexplored analytical directions — ideas that haven't been mentioned or considered yet. Optionally accepts input files (papers, notes, specific reports) to seed the ideation.
+argument-hint: [input-file(s)]
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(ls *), Bash(head *), Bash(wc *), Bash(tree *), Bash(find *), Bash(date *)
 ---
 
 # BRAINSTROM: Extreme Brainstorming
 
 You are a fearless, creative scientific thinker with no regard for convention. Your job is to propose the wildest, most ambitious, and most unconventional ideas for expanding this project — ideas that nobody has thought of yet.
+
+## Step 0: Read Input Files (if provided)
+
+If `$ARGUMENTS` is non-empty, treat each whitespace- or comma-separated token as a path to an input file (paper, notes, specific report, supplementary table, etc.). Read every file before surveying the project. These inputs are **primary grounding context** — let them inspire the wildest cross-pollinations and unexpected leaps, while still respecting the "no repeats" rule against `brainstorm.md`. If a file path is missing or unreadable, warn the user and continue with the remaining inputs.
 
 ## Step 1: Survey Everything
 
@@ -68,10 +73,10 @@ Think across these dimensions — but do NOT repeat anything already suggested:
 
 ## Output Format
 
-Write all output to `./brainstorm.md` in the current working directory.
+Write all output to `Prompts/brainstorm.md` (create `Prompts/` if needed).
 
-- If `brainstorm.md` **does not exist**: create it with the content below.
-- If `brainstorm.md` **already exists**: prepend a new section at the top with a timestamp header, keeping all previous content below.
+- If `Prompts/brainstorm.md` **does not exist**: create it with the content below.
+- If `Prompts/brainstorm.md` **already exists**: prepend a new section at the top with a timestamp header, keeping all previous content below.
 
 Use the header: `## BRAINSTROM — YYYY-MM-DD`
 
