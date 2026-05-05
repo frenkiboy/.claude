@@ -73,5 +73,19 @@
   "enabledPlugins": {
     "code-review@claude-plugins-official": true
   },
-  "skipDangerousModePermissionPrompt": true
+  "skipDangerousModePermissionPrompt": true,
+  "theme": "dark-ansi",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"Today is $(date '+%A %Y-%m-%d') (yymmdd: $(date '+%y%m%d'))\""
+          }
+        ]
+      }
+    ]
+  }
 }
