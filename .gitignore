@@ -19,6 +19,11 @@ plans/
 # Project-specific data (contains conversation logs)
 projects/
 
+# Editor swap and backup files
+*.swp
+*.swo
+*.bak
+
 # Plugin runtime state (caches, marketplaces, install state)
 plugins/cache/
 plugins/marketplaces/
