@@ -1,6 +1,7 @@
 ---
 description: Review implementation_plan.md - audit progress, mark done items, propose next steps, commit, and plan execution
-allowed-tools: [Read, Write, Edit, Glob, Grep, Bash(git add:*), Bash(git status:*), Bash(git commit:*), Bash(git diff:*), Bash(git log:*), Agent]
+argument-hint: [plan-file]
+allowed-tools: [Read, Write, Edit, Glob, Grep, Bash(git add:*), Bash(git status:*), Bash(git commit:*), Bash(git diff:*), Bash(git log:*), Bash(mkdir:*), Bash(date:*), Agent]
 ---
 
 # Implementation Plan Review
@@ -12,9 +13,10 @@ You are reviewing and advancing an implementation plan. Follow each phase sequen
 ## Phase 1: Locate and Read the Plan
 
 **Actions**:
-1. Find `implementation_plan.md` in the current folder tree using Glob with pattern `**/implementation_plan.md`
-2. Read the full file
-3. If not found, inform the user and stop
+1. If `$ARGUMENTS` is provided, use it as the plan file path
+2. Otherwise, find `implementation_plan.md` — check `Prompts/implementation_plan.md` first, then fall back to Glob with pattern `**/implementation_plan.md`
+3. Read the full file
+4. If not found, inform the user and stop
 
 ---
 
@@ -81,18 +83,40 @@ You are reviewing and advancing an implementation plan. Follow each phase sequen
 
 ## Phase 6: Export Tasks to File
 
-**Goal**: Write all remaining tasks to a dated file in the `Prompts/` directory
+**Goal**: Write all remaining tasks to a dated file in the `Prompts/Logs/` directory
 
 **Actions**:
-1. Determine today's date in `yymmdd` format (e.g., `260330`)
-2. Check if `Prompts/yymmdd_tasks.md` already exists
-3. **If the file does NOT exist**: Create `Prompts/yymmdd_tasks.md` with:
+1. Create `Prompts/Logs/` directory if it does not exist
+2. Determine today's date in `yymmdd` format (e.g., `260330`)
+3. Check if `Prompts/Logs/yymmdd_tasks.md` already exists
+4. **If the file does NOT exist**: Create `Prompts/Logs/yymmdd_tasks.md` with:
    - A header: `# Remaining Tasks — YYYY-MM-DD`
    - All uncompleted tasks from the plan, each with: status, description, key files, dependencies, output
-4. **If the file ALREADY exists**: Prepend a new section at the top of the file (after the main header) with:
+5. **If the file ALREADY exists**: Prepend a new section at the top of the file (after the main header) with:
    - `## Update HH:MM` (current hour and minute)
    - The updated task list reflecting the latest audit results
    - Keep the previous entries below for history
-5. Confirm the file path to the user
+6. Confirm the file path to the user
+
+---
+
+## Phase 7: Update Implementation Summary
+
+**Goal**: Maintain `implementation_summary.md` — a clean, up-to-date document of everything accomplished in the project, organized by report
+
+**Actions**:
+1. Read all reports in `Scripts/Reports/` (`.Rmd`, `.md`, `.qmd` files)
+2. Read existing `Prompts/implementation_summary.md` if it exists
+3. Create or update `Prompts/implementation_summary.md` with:
+   - A header: `# Implementation Summary`
+   - A brief project description (derived from `research_plan.md` or `implementation_plan.md`)
+   - **One subheading per report** in `Scripts/Reports/`, named after the report (e.g., `## 01_QC_Analysis`)
+   - Under each subheading, list:
+     - The analyses performed in that report
+     - Key findings or outputs (figures, tables)
+     - Which implementation plan items this report addresses
+   - A final section for work done outside of reports (data processing, pipeline setup, etc.)
+4. The document should be well-organized, readable, and suitable as a project overview for collaborators
+5. Stage and commit `Prompts/implementation_summary.md` with message: "docs: update implementation summary"
 
 ---

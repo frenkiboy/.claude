@@ -1,5 +1,6 @@
 ---
-description: Execute uncompleted items from implementation_plan.md, then commit all changes
+description: Execute uncompleted items from an implementation plan, then commit all changes. Optionally pass a plan file path and/or task numbers (e.g. /plan-exec, /plan-exec 3, /plan-exec Prompts/my_plan.md, /plan-exec Prompts/my_plan.md 1,3,5).
+argument-hint: [plan-file] [task-number(s) | all | next]
 allowed-tools: [Read, Write, Edit, Glob, Grep, Bash, Agent]
 ---
 
@@ -12,12 +13,30 @@ You are executing uncompleted items from an implementation plan. Follow each pha
 ## Phase 1: Locate and Parse the Plan
 
 **Actions**:
-1. Find `implementation_plan.md` in the current folder tree using Glob with pattern `**/implementation_plan.md`
-2. Read the full file
-3. If not found, inform the user and stop
-4. Also read `CHANGELOG.md` if it exists alongside the plan (same directory)
-5. Extract all uncompleted TODO items (lines with `[ ]` or unmarked items under TODO sections)
-6. Present the list of uncompleted items to the user and ask which items to execute (or confirm "all")
+1. Parse `$ARGUMENTS` into whitespace-separated tokens. The first token is a **plan-file** if it (a) ends in `.md`, (b) contains `/`, or (c) matches an existing file on disk. Otherwise treat all tokens as task selectors.
+2. Determine the plan file:
+   - If a plan-file token was provided: use it (resolve relative to the working directory; error out if missing)
+   - Else: check `Prompts/implementation_plan.md` first, then fall back to Glob with pattern `**/implementation_plan.md`
+3. Read the full plan file
+4. If not found, inform the user and stop
+5. Also read `Prompts/CHANGELOG.md` if it exists
+6. Extract all uncompleted TODO items (lines with `[ ]` or unmarked items under TODO sections), numbering them sequentially (1, 2, 3, ...)
+7. Determine which items to execute from the remaining (non-plan-file) tokens:
+   - If `next`: execute only the **first** uncompleted task (task #1 in the numbered list)
+   - If a **number** is provided (e.g., `3`): execute only that specific task item
+   - If **multiple numbers** are provided (e.g., `1,3,5` or `1 3 5`): execute those specific items
+   - If `all` or **no task token**: present the numbered list to the user and ask which items to execute (or confirm "all")
+
+**Examples of argument parsing**:
+- `/plan-exec` → default plan file, ask user
+- `/plan-exec next` → default plan file, first uncompleted task
+- `/plan-exec 3` → default plan file, task 3
+- `/plan-exec all` → default plan file, all tasks
+- `/plan-exec Prompts/my_plan.md` → `Prompts/my_plan.md`, ask user
+- `/plan-exec Prompts/my_plan.md next` → `Prompts/my_plan.md`, first uncompleted task
+- `/plan-exec Prompts/my_plan.md 3` → `Prompts/my_plan.md`, task 3
+- `/plan-exec Prompts/my_plan.md 1,3,5` → `Prompts/my_plan.md`, tasks 1, 3, and 5
+- `/plan-exec Prompts/my_plan.md all` → `Prompts/my_plan.md`, all tasks
 
 ---
 
@@ -50,7 +69,7 @@ You are executing uncompleted items from an implementation plan. Follow each pha
 **Goal**: Document what was implemented
 
 **Actions**:
-1. Read the existing `CHANGELOG.md` (same directory as `implementation_plan.md`)
+1. Read the existing `Prompts/CHANGELOG.md` (create `Prompts/` directory if needed)
 2. Add a new version entry at the top with today's date
 3. List all items that were completed with brief descriptions
 4. Note any items that were skipped and why
