@@ -153,6 +153,17 @@ Always use the **newest results** from upstream steps. Never hardcode dated path
 - Re-run downstream reports when upstream changes
 - Warn if cached outputs are stale relative to upstream report modification time
 
+## Report Input Files
+
+Every `.Rmd` must list **all input files** it consumes near the top (in a YAML `inputs:` block or a "## Inputs" section). For each file:
+
+- **Path**: full or project-relative
+- **Type**: raw data, cacheR output, upstream report figure/table, external/published
+- **Source**: which report or pipeline produced it (or the publication if external)
+- **Used for**: brief reason it's loaded in this report
+
+Update the list when the code changes — stale input documentation is worse than none.
+
 ## Figure Documentation
 
 Every figure must have a description (in `fig.cap` or preceding paragraph) covering:

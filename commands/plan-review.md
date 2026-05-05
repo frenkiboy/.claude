@@ -20,6 +20,23 @@ You are reviewing and advancing an implementation plan. Follow each phase sequen
 
 ---
 
+## Phase 1b: Pre-flight — Commit Pending Plan Edits
+
+**Goal**: Keep manual plan edits separate from the audit commit
+
+**Actions**:
+1. Skip this phase if the working directory is not a git repo
+2. Run `git status --porcelain -- <plan-file>`
+3. If the plan file has staged or unstaged changes:
+   - Stage only that file (do NOT use `git add -A`)
+   - Commit with message: `docs: refine plan`
+   - Show the commit hash to the user so they know it happened
+4. Proceed to Phase 2 with a clean plan-file state
+
+This ensures the audit commit in Phase 4 only contains audit-driven changes, not the user's manual edits.
+
+---
+
 ## Phase 2: Audit the Codebase for Completed Work
 
 **Goal**: Determine which plan items have already been implemented
