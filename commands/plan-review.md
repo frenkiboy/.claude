@@ -14,9 +14,15 @@ You are reviewing and advancing an implementation plan. Follow each phase sequen
 
 **Actions**:
 1. If `$ARGUMENTS` is provided, use it as the plan file path
-2. Otherwise, find `implementation_plan.md` — check `Prompts/implementation_plan.md` first, then fall back to Glob with pattern `**/implementation_plan.md`
-3. Read the full file
-4. If not found, inform the user and stop
+2. Otherwise, locate the plan with this precedence:
+   1. `Prompts/implementation.md` (new prompt-driven pipeline; Todo / In progress / Done sections)
+   2. `Prompts/implementation_plan.md` (legacy; checkbox format)
+   3. `Glob **/implementation.md` then `**/implementation_plan.md`
+3. If both `implementation.md` and `implementation_plan.md` exist in the same project, **prefer the new one and warn the user** so they know a legacy file is being ignored.
+4. Read the full file. Note which format it is — the rest of the phases branch on this:
+   - **New format** = three sections (`## Todo`, `## In progress`, `## Done`) with items like `- [ ] <text> [log: <iso>] [session: <8char>]` and optional `→ Prompts/canvases/NNN_slug.md` backlinks.
+   - **Legacy format** = free-form checkbox items.
+5. If not found, inform the user and stop.
 
 ---
 
@@ -60,10 +66,11 @@ This ensures the audit commit in Phase 4 only contains audit-driven changes, not
    - **Novel additions**: Code/features found that aren't in the plan yet
    - **In progress**: Items partially done
    - **Not started**: Items with no implementation yet
-2. Update `implementation_plan.md`:
-   - Mark completed items with `[x]` (or equivalent checkbox notation already used in the file)
-   - Add any novel additions as new items under an appropriate section
-   - Preserve the document's existing formatting and structure
+2. Update the plan file:
+   - **New format (`implementation.md`)**: move items *between sections*. Completed items go under `## Done`; partially-done items move to `## In progress` (and gain a canvas backlink if a `Prompts/canvases/NNN_*.md` exists referencing the item — match by `implementation_md_item` in the canvas YAML). Add novel additions under `## Todo`. Do not toggle checkboxes — section is the source of truth.
+   - **Legacy format (`implementation_plan.md`)**: mark completed items with `[x]` (or the file's existing checkbox notation). Add novel additions as new checkbox items under an appropriate section.
+   - Preserve the document's existing formatting and structure.
+   - For any canvas-linked item moved to `## Done`, also update the canvas's YAML `status: done` field — keep canvas status and section in lockstep.
 3. Show the user the diff of changes made to the plan
 
 ---
@@ -94,7 +101,40 @@ This ensures the audit commit in Phase 4 only contains audit-driven changes, not
    - **Why**: Why this should be prioritized
    - **How**: Brief execution plan (key files to modify, approach, estimated complexity)
    - **Dependencies**: What must exist first
-3. Present the ranked list to the user and ask which items they want to tackle next
+3. Present the ranked list to the user and ask which items they want to tackle next.
+4. **If the plan is the new `implementation.md` format**, ask one additional question:
+   > "Create canvases for any of these? (e.g. `1,3` or `none`)"
+   For each chosen item, proceed to Phase 5b. If `none`, skip 5b and 5c.
+
+---
+
+## Phase 5b: Canvas creation (inline, new format only)
+
+**Goal**: Lock down intent in a structured canvas before code is written
+
+**Actions**: for each item the user approved for canvasing in Phase 5 step 4:
+
+1. Run the procedure described in `~/.claude/commands/plan-convert.md` **Phases 2–4 verbatim**:
+   - Phase 2: allocate the next `NNN` and generate slug
+   - Phase 3: gather upstream/downstream context (Explore agent if useful)
+   - Phase 4: draft the canvas at `Prompts/canvases/NNN_slug.md` using the six-section template
+2. Move the item in `implementation.md`: `## Todo` → `## In progress`, and append `→ Prompts/canvases/NNN_slug.md` to the item line.
+3. Set the canvas YAML `status: in_progress` (matching its section).
+4. Skip Phase 6 of `plan-convert` (its "suggest next step") — this command handles that in Phase 5c.
+
+---
+
+## Phase 5c: Optional immediate execution (new format only)
+
+**Goal**: Hand the freshly-canvased items off to `/plan-exec` if the user wants to run them now
+
+**Actions**:
+1. If any canvases were created in Phase 5b, ask:
+   > "Execute any of the new canvases now? (e.g. `1,3` or `none`)"
+2. For each approved item, either:
+   - Invoke `/plan-exec` inline with the canvas's `implementation.md` item number, OR
+   - Report the exact command the user should run themselves (preferred if the user wants to review the canvas before code generation).
+3. If `none`, stop here. The canvases exist and can be picked up later with `/plan-exec next` or `/plan-exec <NNN>`.
 
 ---
 
@@ -126,12 +166,13 @@ This ensures the audit commit in Phase 4 only contains audit-driven changes, not
 2. Read existing `Prompts/implementation_summary.md` if it exists
 3. Create or update `Prompts/implementation_summary.md` with:
    - A header: `# Implementation Summary`
-   - A brief project description (derived from `research_plan.md` or `implementation_plan.md`)
+   - A brief project description (derived from `research_plan.md`, `implementation.md`, or `implementation_plan.md`)
    - **One subheading per report** in `Scripts/Reports/`, named after the report (e.g., `## 01_QC_Analysis`)
    - Under each subheading, list:
      - The analyses performed in that report
      - Key findings or outputs (figures, tables)
      - Which implementation plan items this report addresses
+     - **Canvas backlinks**: scan the report for `(canvas: NNN)` figure markers and `Implements: Prompts/canvases/NNN_slug.md` commit trailers in the report's git history. For each unique NNN, link to `Prompts/canvases/NNN_slug.md` so the summary doubles as an intent → output map.
    - A final section for work done outside of reports (data processing, pipeline setup, etc.)
 4. The document should be well-organized, readable, and suitable as a project overview for collaborators
 5. Stage and commit `Prompts/implementation_summary.md` with message: "docs: update implementation summary"
