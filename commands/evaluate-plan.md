@@ -1,7 +1,7 @@
 ---
-description: Grill the user about gaps in the implementation plan and canvases - methods, parameters, controls, dependencies, edge cases. One question at a time, each with a recommended answer. Resolves TBDs and ambiguities before code is written.
-argument-hint: [plan-file or canvas-file or section]
-allowed-tools: [Read, Write, Edit, Glob, Grep, Bash(ls:*), Bash(date:*), Bash(grep:*), Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git add:*), Bash(git commit:*), Agent]
+description: Grill the user about gaps in the implementation plan and canvases - methods, parameters, controls, dependencies, edge cases. One question at a time, each with a recommended answer. Resolves TBDs and ambiguities before code is written. Pass a file path to scope the grilling to that artifact.
+argument-hint: [path-to-file | section-keyword]
+allowed-tools: [Read, Write, Edit, Glob, Grep, Bash(ls:*), Bash(date:*), Bash(grep:*), Bash(realpath:*), Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git add:*), Bash(git commit:*), Agent]
 ---
 
 # Evaluate the Plan — Socratic Interrogation
@@ -23,16 +23,30 @@ is to run this command first.
 
 **Actions**:
 
-1. Read the plan files:
-   - `Prompts/research_plan.md` — especially the `## Constraints` section (Positive controls, Negative controls, Workflow constraints, Important variables)
-   - `Prompts/implementation.md` (new format) OR `Prompts/implementation_plan.md` (legacy) — whichever exists; if both, prefer new + warn
-   - `CLAUDE.md` — project conventions, oracle testing rules, data provenance rules
-   - All `Prompts/canvases/*.md` — every existing canvas
-2. If `$ARGUMENTS` is provided, scope the grilling:
-   - If a `.md` path: grill only that file
-   - If `constraints` / `controls` / `methods` / `stats` / `reproducibility`: grill only that theme across all loaded files
-   - Otherwise: grill the entire plan
-3. If no plan files exist: tell the user there's nothing to evaluate and stop.
+1. **Resolve `$ARGUMENTS` first** — the argument drives what gets loaded:
+
+   - **`$ARGUMENTS` is a file path** (ends in `.md` / `.R` / `.Rmd` / `.py` / `.qmd`, or matches an existing file on disk): treat it as the **focal artifact**. The focal artifact determines the mode below.
+   - **`$ARGUMENTS` is a keyword** (`constraints`, `controls`, `methods`, `stats`, `reproducibility`, `dependencies`): grill only that theme across the full plan + canvases (no focal artifact).
+   - **`$ARGUMENTS` is empty**: grill the entire plan (full mode).
+   - **`$ARGUMENTS` doesn't resolve**: tell the user and stop.
+
+2. **Always load minimum context** (regardless of mode), if they exist:
+   - `Prompts/research_plan.md` — especially `## Constraints` (Positive controls, Negative controls, Workflow constraints, Important variables)
+   - `CLAUDE.md` — project conventions, oracle testing, data provenance rules
+
+3. **Focal-artifact mode** — what else to load depends on the focal file type:
+
+   | Focal file | Also load | Grilling targets |
+   |------------|-----------|------------------|
+   | `Prompts/canvases/NNN_*.md` (a canvas) | Every canvas listed under that canvas's `# Structure → Upstream`; the matching item in `implementation.md`; any reports under `Scripts/Reports/` that already cite `canvas: NNN` | The focal canvas's Approach/Operations/Safeguards (gaps) + whether the focal canvas honors Constraints + whether Upstream dependencies actually exist |
+   | `Prompts/implementation.md` (or legacy `implementation_plan.md`) | All canvases backlinked from In-progress items | The plan structure: Todo items without canvases, In-progress items with unresolved canvases, coverage of `research_plan.md`'s Scientific Questions |
+   | `Prompts/research_plan.md` | All canvases (for cross-reference) | The Constraints section (each subsection's completeness), Scientific Questions vs canvas coverage, Important variables vs canvas Approaches |
+   | `Scripts/Reports/*.Rmd` / `Scripts/Bin/*.R` / `.py` / `.qmd` (code file) | The canvas it cites in its header (`# Canvas: Prompts/canvases/NNN_*.md`); if no canvas cited, flag this as the first gap | Whether the code matches the canvas's Operations, whether figure captions carry `(canvas: NNN)` backlinks, whether the script header lists Inputs/Outputs/Upstream/Downstream |
+   | any other `.md` | Nothing extra | Treat as free-text plan; surface vague language, missing thresholds, undefined acronyms |
+
+4. **Full mode (no `$ARGUMENTS`)**: load all `Prompts/canvases/*.md` and walk the full backlog as before.
+
+5. If neither the focal artifact nor `Prompts/research_plan.md` / `implementation.md` exists: tell the user there's nothing to evaluate and stop.
 
 ---
 
