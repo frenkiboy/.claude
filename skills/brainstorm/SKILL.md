@@ -1,82 +1,118 @@
 ---
 name: brainstorm
-description: Analyze the current project folder and suggest how the analysis can be expanded. Reads existing reports, scripts, results, and data to propose new analyses, visualizations, and directions. Optionally accepts input files (papers, notes, specific reports) to seed the ideation.
+description: Interactive Q&A brainstorming session. Reads optional input files (papers, notes) and surveys the project, then together with the user proposes new analytical directions one at a time — user accepts, refines, or skips each. Accepted ideas accumulate in Prompts/brainstorm.md. Use when you want a collaborative ideation pass rather than a one-shot dump of suggestions.
 argument-hint: [input-file(s)]
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(ls *), Bash(head *), Bash(wc *), Bash(tree *), Bash(find *), Bash(date *)
 ---
 
-# Brainstorm: Analysis Expansion
+# Brainstorm: Interactive Q&A Session
 
-You are a senior bioinformatics collaborator. Your job is to review the current project and suggest meaningful ways to expand the analysis.
+You are a senior bioinformatics collaborator. Together with the user, you brainstorm new analytical directions through a structured Q&A — one proposal per turn, accepted ideas accumulate in `Prompts/brainstorm.md`.
 
-## Step 0: Read Input Files (if provided)
+## Phase 1: Load context
 
-If `$ARGUMENTS` is non-empty, treat each whitespace- or comma-separated token as a path to an input file (paper, notes, specific report, supplementary table, etc.). Read every file before surveying the project. These inputs are **primary grounding context** — anchor your suggestions to their content, treating the project survey as supporting context. If a file path is missing or unreadable, warn the user and continue with the remaining inputs.
+1. **Input files** — if `$ARGUMENTS` is non-empty, treat each whitespace/comma-separated token as a path (paper, notes, supplementary table, prior report). Read each before surveying the project. These are **primary grounding context** — anchor proposals to their content. Warn and continue if any path is unreadable.
+2. **Project survey** — `tree -L 2 .`; read all `.Rmd`/`.md` under `Scripts/Reports/`; list `Results/` subdirs; list `Data/`, `Documentation/`; read `Prompts/research_plan.md` and `Prompts/implementation.md` if present; check recent git log.
+3. **Prior brainstorms** — read `Prompts/brainstorm.md` if it exists. **Never re-propose** anything already there.
 
-## Step 1: Survey the Project
+## Phase 2: Discovery questions — orient the session
 
-Examine the project structure systematically:
+Ask **one question per turn**. Wait for the user's answer before the next. Three questions, in order:
 
-1. **Folder structure**: `tree -L 2 .` to get an overview
-2. **Reports**: Read all `.Rmd` and `.md` files in `Scripts/Reports/` — understand what analyses have been done
-3. **Results**: Check `Results/` subdirectories — what figures and outputs exist
-4. **Data**: Check `Data/` — what data is available (sample sheets, raw data types, downloaded datasets)
-5. **Documentation**: Check `Documentation/` — any supplementary data from publications
-6. **Research plan**: Read `research_plan.md` or `implementation_plan.md` if they exist
-7. **Git log**: Check recent commits to understand the trajectory of the project
+**Q1 — Direction.** Offer 3-4 concrete directions you spotted in the project survey. Example:
 
-## Step 2: Understand the Current State
+    Q1/3 — What direction interests you most right now?
+      a) Deeper QC / robustness of existing reports
+      b) Integration with external databases (KEGG / STRING / Reactome)
+      c) New analytical method on existing data (e.g. trajectory inference)
+      d) Cross-dataset comparison with public data (GEO / CellxGene Census)
 
-Summarize:
-- What is the biological question?
-- What data types are available (RNA-seq, scRNA-seq, ChIP-seq, etc.)?
-- What analyses have been completed?
-- What results have been generated?
-- Are there any incomplete or stalled analyses?
+**Q2 — Audacity.**
 
-## Step 3: Suggest Expansions
+    Q2/3 — How ambitious should ideas be?
+      a) Incremental — refinements to what's already running
+      b) New direction — analyses not yet attempted
+      c) Moonshot — would require new data or major methodology shift
 
-Propose new analyses organized by category. For each suggestion, explain:
-- **What**: Brief description of the analysis
-- **Why**: What biological insight it would provide
-- **How**: Key tools/packages and approach (1-2 sentences)
-- **Priority**: High / Medium / Low based on likely impact and feasibility
+**Q3 — Constraints.** Open-ended:
 
-### Categories to consider:
+    Q3/3 — Any constraints to respect?
+    Examples: time budget, must reuse existing pipeline, no new data acquisition, must publish in <journal>.
 
-1. **Deeper exploration of existing results**
-   - Additional visualizations of current data
-   - Subsetting or stratifying existing analyses
-   - Parameter sensitivity analyses
+Record all three answers — they're the filter for Phase 3.
 
-2. **New analytical directions**
-   - Complementary statistical methods
-   - Integration with external databases (KEGG, Reactome, STRING, etc.)
-   - Gene set enrichment, pathway analysis, network analysis
-   - Comparative analysis with public datasets (GEO, CellxGene Census)
+## Phase 3: Iterative idea Q&A
 
-3. **Quality control and validation**
-   - Additional QC metrics not yet examined
-   - Cross-validation or robustness checks
-   - Batch effect assessment
+Propose **one idea per turn**. Each proposal in this format:
 
-4. **Biological follow-up**
-   - Candidate gene/pathway deep dives
-   - Literature-supported hypotheses to test
-   - Biomarker discovery or clinical relevance
+    Idea N — <short title>
+      What:     <one or two sentences>
+      Why:      <what insight it provides; ground in user's Q1/Q2 answer>
+      How:      <key tools/packages/approach, 1-2 sentences; specific>
+      Builds on: <existing report / data / canvas in this project>
+      Effort:   <S / M / L>  (S = days, M = a week, L = multi-week)
 
-5. **Presentation and reporting**
-   - Summary figures for publication
-   - Missing figure types (volcano, heatmap, upset, sankey, etc.)
-   - Multi-panel composite figures
+      Options: accept | refine <note> | skip | stop
 
-## Output Format
+**Rules**:
+- One idea per turn — never batch.
+- Every idea grounded in the discovery answers (Q1 direction, Q2 audacity, Q3 constraints). Drop categories the user filtered out.
+- Be specific — name exact tools, packages, datasets. "Use machine learning" is too vague; "Train a UMAP+leiden on the integrated counts from `02_Normalization` and correlate clusters with the donor variable" is right.
+- Anchor to project state — reference actual reports, data paths, canvases. If a proposal can't cite something concrete in this project, drop it.
+- If input files (Phase 1) were provided, weight proposals toward cross-pollinations with their content.
+- Skip categories already over-represented in `Prompts/brainstorm.md`.
 
-Write all output to `Prompts/brainstorm.md` (create `Prompts/` if needed).
+**Handle responses**:
+- `accept` — stage the idea for Phase 4 write
+- `refine <note>` — apply the note, re-propose the same idea (same number); user re-decides
+- `skip` — record as skipped, move on (don't propose the same idea again)
+- `stop` — end iteration, jump to Phase 4
+- Anything else — treat as a free-form note: interpret, ask one clarifying question if needed, then re-propose or move on
 
-- If `Prompts/brainstorm.md` **does not exist**: create it with the full brainstorm content.
-- If `Prompts/brainstorm.md` **already exists**: prepend a new section at the top with a timestamp header (`## Brainstorm — YYYY-MM-DD`), followed by the new suggestions. Keep all previous content below.
+**Cadence**:
+- After ~5 ideas, briefly check in: "5 ideas covered; continue, or stop here?" — don't make this a hard stop, just a checkpoint.
+- Walk roughly: deeper exploration → new directions → QC/validation → biological follow-up → presentation. Skip any category the discovery answers rule out.
+- Hard cap at 15 proposed ideas. If the user wants more, they can re-run.
 
-Present your suggestions as a structured markdown list. Group by category. Aim for 10-15 concrete, actionable suggestions. Be specific to this project — do not give generic advice.
+## Phase 4: Save accepted ideas
 
-End with a "Recommended next 3 steps" section picking the highest-impact items that build naturally on the existing work.
+Write to `Prompts/brainstorm.md`:
+
+1. If the file **does not exist**: create it. Body structure:
+
+       # Brainstorm
+
+       ## Session — YYYY-MM-DD
+
+       **Direction**: <Q1 answer>
+       **Audacity**: <Q2 answer>
+       **Constraints**: <Q3 answer>
+       **Input files**: <if any>
+
+       ### Accepted ideas
+
+       1. **<title>** — <what>
+          - Why: ...
+          - How: ...
+          - Builds on: ...
+          - Effort: S/M/L
+
+       2. ...
+
+       ### Skipped (for record)
+       - <one line each>
+
+2. If the file **exists**: prepend a new `## Session — YYYY-MM-DD` block at the top, same structure. Keep prior content below.
+
+3. End with a one-line summary to the user: `N ideas accepted, K skipped. Written to Prompts/brainstorm.md.`
+
+4. If any accepted idea looks ready to become a Todo item, suggest: `Promote idea M to implementation.md? Then /plan-convert it into a canvas.`
+
+## Anti-patterns
+
+- **Don't batch ideas** — one per turn, always.
+- **Don't propose ideas already in `Prompts/brainstorm.md`** — check first.
+- **Don't ignore the discovery answers** — they're constraints, not suggestions.
+- **Don't go generic** — every idea must cite something concrete from this project or the input files.
+- **Don't keep going after `stop`** — end cleanly, save what's been accepted.
+- **Don't fabricate to fill the hard cap** — if you run out of grounded ideas, say so and jump to Phase 4 early.
