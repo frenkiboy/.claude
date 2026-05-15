@@ -15,6 +15,7 @@ telemetry/
 todos/
 tasks/
 plans/
+.last-cleanup
 
 # Project-specific data (contains conversation logs)
 projects/
