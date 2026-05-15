@@ -9,7 +9,11 @@ allowed-tools: Read, Write, Glob, Grep, Bash(mkdir *), Bash(ln *), Bash(git *), 
 
 ## Print Mode
 
-If the argument is `print`, write the `research_plan.md` template to `./Prompts/research_plan.md` AND the CLAUDE.md template (see "CLAUDE.md Template" section below) to `./CLAUDE.md` (create `Prompts/` if needed), then stop.
+If the argument is `print`, write three templates to the current directory (create `Prompts/` if needed) and stop:
+
+1. `./Prompts/research_plan.md` — research-plan template (below)
+2. `./CLAUDE.md` — project conventions template (see "CLAUDE.md Template" section)
+3. `./PIPELINE.md` — prompt-driven workflow + per-command I/O reference (see "PIPELINE.md Template" section)
 
 The research_plan.md template content:
 
@@ -151,6 +155,7 @@ Ask the user to fill in (use `$ARGUMENTS` for project_name if provided):
 4. Initialize git repository
 5. Create `CHANGELOG.md` with project name header and "Project created" entry dated today
 6. Write `CLAUDE.md` using the template below
+6b. Write `PIPELINE.md` at the project root using the "PIPELINE.md Template" section below
 7. Seed `Scripts/INDEX.md` with the header row only: `| Path | Lang | Purpose | Inputs | Outputs | Upstream | Downstream |` plus separator row — no entries yet
 8. Seed `Prompts/implementation.md` with three empty sections: `## Todo`, `## In progress`, `## Done` — and a one-line preface explaining that `/triage` populates Todo from `PROMPT_LOG.md`
 9. Add a placeholder `Prompts/canvases/.gitkeep` so the empty directory tracks in git
@@ -217,6 +222,14 @@ When creating `CLAUDE.md` for a new project (both Print Mode and Setup Mode), us
 - Shared functions go in `Scripts/Bin/` and are sourced/imported by reports — never copy-paste between reports
 - For long-running jobs, log progress to `Prompts/Logs/` not stdout
 - Validate against positive/negative controls listed in `Prompts/research_plan.md` before trusting downstream results
+
+## Data Transformation
+
+Every data transformation — filtering, normalization, joining, reshaping, summarization, format conversion — must live in a versioned script or function under `Scripts/Bin/`. `Scripts/Reports/` is reserved for **final reports only** — reports load already-transformed inputs and visualize/summarize them; they do not transform data themselves. No ad-hoc REPL transformations, no one-off `awk` / `sed` pipelines in a chat scratchpad, no in-memory mutations that aren't backed by a file in `Scripts/Bin/`.
+
+- **Standalone bash invocable.** Every transformation script must run as a self-contained command: `Rscript Scripts/Bin/<name>.R <args>`, `python Scripts/Bin/<name>.py <args>`, `bash Scripts/Bin/<name>.sh <args>`. Inputs and parameters come in as CLI arguments — no required interactive state, no hidden globals, no "open this notebook and run cells 1–7 first."
+- **Result → transformation traceable.** Every output artifact (figure, table, cached object, processed data file) must be chainable back to the exact script + arguments + canvas + prompt that created it. The chain is: `RUN_LOG.md` records the invocation, the script header names its canvas, the figure caption carries `(canvas: NNN)`, the canvas links to `PROMPT_LOG.md`. If any link is missing for an output, the output is not trusted.
+- Exploration in a notebook is fine — but the moment a transformation feeds a downstream artifact, move it into `Scripts/Bin/` and re-run it as a standalone bash call. If you find yourself transforming data inside a report under `Scripts/Reports/`, that's a signal to extract the transformation into `Scripts/Bin/` and have the report consume its output.
 
 ## Data Provenance
 
@@ -326,7 +339,7 @@ Headers, INDEX.md, and `dependencies.json` together form the static picture; `RU
 
 ## Prompt-Driven Workflow
 
-Prompts are first-class artifacts in this project — versioned, reviewable, and committed alongside the code they produce.
+Prompts are first-class artifacts in this project — versioned, reviewable, and committed alongside the code they produce. **See `PIPELINE.md` at the project root for the full pipeline diagram and per-command I/O table.**
 
 ### The four files
 
@@ -410,3 +423,126 @@ Multiple canvases per commit go on separate trailer lines. This makes the chain 
 
 Every figure caption ends with `(canvas: NNN)` so the prompt that drove the figure can be recovered six months later from the figure alone.
 ---END CLAUDE.md TEMPLATE---
+
+---
+
+## PIPELINE.md Template
+
+When scaffolding a new project (both Print Mode and Setup Mode), also write `PIPELINE.md` at the project root using this content verbatim:
+
+---BEGIN PIPELINE.md TEMPLATE---
+# Pipeline
+
+This project's prompt-driven workflow chains a small set of slash commands and four key file families. Every figure can be walked back to the user prompt that requested it.
+
+## Files at a glance
+
+| File | Role | Edit policy |
+|------|------|-------------|
+| `Prompts/Logs/PROMPT_LOG.md`        | Verbatim user prompts                                  | auto-appended, never edit |
+| `Prompts/Logs/RUN_LOG.md`           | Verbatim script invocations                            | auto-appended, never edit |
+| `Prompts/research_plan.md`          | High-level scientific plan                             | hand-curated |
+| `Prompts/implementation.md`         | Curated backlog (`## Todo` / `In progress` / `Done`)   | curated via `/triage` |
+| `Prompts/canvases/NNN_slug.md`      | Structured intent per task — locked before code        | written via `/plan-convert` |
+| `Scripts/Bin/<name>.{R,py,sh}`      | Data transformations (standalone bash callable)        | written via `/plan-exec` |
+| `Scripts/Reports/NN_<name>.Rmd`     | Final reports — consume Bin/ outputs, do not transform | written via `/plan-exec` |
+| `Results/<report>/yymmdd_*.pdf`     | Figures with `(canvas: NNN)` caption backlinks         | rendered by reports |
+| `Prompts/implementation_summary.md` | Project overview, one section per report               | maintained by `/plan-review` |
+| `Prompts/dependencies.json`         | Data-flow DAG (nodes & edges)                          | hand-maintained per `/plan-exec` |
+| `Scripts/INDEX.md`                  | One-row-per-script manifest                            | hand-maintained on add/rename |
+| `CHANGELOG.md`                      | Cross-session shared memory                            | updated end of every work unit |
+
+## Pipeline graph
+
+```mermaid
+flowchart TD
+    USER([User prompt]):::ext -->|UserPromptSubmit hook| PLOG[(PROMPT_LOG.md)]:::log
+
+    RPLAN[(research_plan.md)]:::doc -->|/research-to-implementation| IMPL
+    PLOG -->|/triage| IMPL[(implementation.md<br/>Todo / In progress / Done)]:::doc
+    PLOG -.context.-> CNV
+
+    IMPL -->|/plan-convert N| CNV[(canvases/NNN_slug.md)]:::doc
+
+    CNV -->|/plan-exec| BIN[Scripts/Bin/*<br/>transformations]:::code
+    CNV -->|/plan-exec| RPT[Scripts/Reports/*<br/>final reports]:::code
+    BIN -->|loaded by| RPT
+    RPT -->|render| RES[(Results/*<br/>figures, tables)]:::out
+    BIN & RPT -->|PostToolUse hook| RLOG[(RUN_LOG.md)]:::log
+    BIN & RPT -->|"git commit (Implements:)"| GIT[(git log)]:::log
+
+    IMPL & CNV & GIT -->|/plan-review| AUD[implementation.md audit<br/>implementation_summary.md<br/>Logs/yymmdd_tasks.md]:::doc
+    AUD -.approved next steps.-> CNV
+    AUD -.|/gogogo: review then exec|.-> BIN
+
+    IMPL -.->|/grill-me| GRL[Resolved TBDs<br/>in target file]:::doc
+    CNV -.->|/grill-me| GRL
+    RPLAN -.->|/grill-me| GRL
+
+    GIT -->|/report| RPRT([Status summary]):::ext
+
+    classDef ext  fill:#eee,stroke:#666,color:#000
+    classDef log  fill:#fdd,stroke:#a44,color:#000
+    classDef doc  fill:#dfe,stroke:#484,color:#000
+    classDef code fill:#def,stroke:#448,color:#000
+    classDef out  fill:#ffe,stroke:#a83,color:#000
+```
+
+## Per-command I/O
+
+### Automated hooks (no command required)
+
+| Trigger              | Reads                                                                          | Writes                                |
+|----------------------|--------------------------------------------------------------------------------|----------------------------------------|
+| `UserPromptSubmit`   | user's prompt text                                                             | `Prompts/Logs/PROMPT_LOG.md` (append) |
+| `PostToolUse` (Bash) | script invocations matching `Rscript`, `python`, `snakemake`, `bash *.sh`, `./*.{R,py,sh,Rmd}` | `Prompts/Logs/RUN_LOG.md` (append)    |
+
+### Slash commands
+
+| Command | Reads | Writes / Side effects |
+|---------|-------|------------------------|
+| `/research-setup print`        | (none)                                                                                                          | `Prompts/research_plan.md`, `CLAUDE.md`, `PIPELINE.md` (templates) |
+| `/research-setup <name>`       | user-supplied parameters                                                                                        | full project scaffold (folders, env, git, settings, `INDEX.md`, `implementation.md` skeleton, `CHANGELOG.md`, `CLAUDE.md`, `PIPELINE.md`) |
+| `/research-to-implementation`  | `Prompts/research_plan.md`                                                                                      | `Prompts/implementation.md` (initial `## Todo` seeded from planned analyses) |
+| `/triage`                      | `Prompts/Logs/PROMPT_LOG.md`, `Prompts/implementation.md`                                                       | `Prompts/implementation.md` (new Todo entries with `[log: <iso>]` markers) |
+| `/grill-me [file]`             | target file (`implementation.md`, a canvas, or `research_plan.md`)                                              | updated target with resolved TBDs (one Q&A at a time) |
+| `/plan-convert <N>`            | `Prompts/implementation.md` Todo item N, `PROMPT_LOG.md`, `Data/`, `Documentation/`, prior canvases, `Scripts/Bin/` | new `Prompts/canvases/NNN_slug.md`; `implementation.md` Todo→In progress + `→ canvases/NNN_*.md` backlink |
+| `/plan-exec [N or canvas]`     | canvas at `Prompts/canvases/NNN_*.md`, `Prompts/implementation.md`, `Scripts/Bin/` helpers                       | `Scripts/Bin/<name>.{R,py,sh}` (transformations), `Scripts/Reports/NN_<name>.Rmd` (reports), `Results/<report>/yymmdd_*.pdf` (figures with `(canvas: NNN)` captions), git commit with `Implements: Prompts/canvases/NNN_*.md` trailer, `implementation.md` In progress→Done, canvas `status: done` |
+| `/plan-review [file]`          | `Prompts/implementation.md`, `Scripts/Bin/`, `Scripts/Reports/`, `Prompts/canvases/`, git log                    | audit commit to `implementation.md`, `Prompts/implementation_summary.md`, `Prompts/Logs/yymmdd_tasks.md`. **Delegates to `/plan-convert` for approved next steps**, suggests `/plan-exec` for immediate execution |
+| `/gogogo`                      | (composite)                                                                                                     | runs `/plan-review`, then `/plan-exec` on uncompleted items, then commits |
+| `/report`                      | git log, `CHANGELOG.md`, `Prompts/implementation.md`                                                            | status summary to chat |
+| `/brainstorm`, `/brainstrom`   | project state, optional input files                                                                             | proposals for new analyses (no file writes unless requested) |
+| `/wup`                         | running tasks, agents, active plan progress                                                                     | session status summary to chat |
+
+## Provenance chain — output back to originating prompt
+
+Any figure can be walked back through six layers to the verbatim user prompt that requested it:
+
+1. **Figure** `Results/03_DE/260513_Volcano_treated_vs_ctrl.pdf` — caption ends with `(canvas: 005)`.
+2. **Canvas** `Prompts/canvases/005_de-treated-vs-ctrl.md` — YAML carries `implementation_md_item:` and `source_prompt_log: <iso>`.
+3. **implementation.md** — item lives under `## Done` with `→ Prompts/canvases/005_*.md` backlink.
+4. **PROMPT_LOG.md** — the entry at the canvas's `source_prompt_log` timestamp contains the verbatim user prompt.
+5. **git log** — `git log --grep "canvases/005"` lists every commit that touched this task, each carrying the `Implements:` trailer and the exact files changed in `Scripts/Bin/`, `Scripts/Reports/`, `Results/`.
+6. **RUN_LOG.md** — records each invocation of the scripts in (5), with args and timestamps.
+
+If any link in the chain is missing for a result, the result is **not** trusted.
+
+## Lifecycle of a single analysis
+
+1. User types a request → `UserPromptSubmit` hook appends to `PROMPT_LOG.md`.
+2. `/triage` promotes the request to `implementation.md` under `## Todo`.
+3. (Optional) `/grill-me` resolves TBDs in the Todo entry or `research_plan.md`.
+4. `/plan-convert <N>` writes `canvases/NNN_slug.md` and moves the item to `## In progress`.
+5. (Optional) `/grill-me canvases/NNN_*.md` tightens the canvas before code.
+6. `/plan-exec` generates `Scripts/Bin/` transformations + a `Scripts/Reports/` report, runs them (auto-logged to `RUN_LOG.md`), commits with `Implements:` trailer, moves the item to `## Done`.
+7. `/plan-review` later audits, refreshes `implementation_summary.md` + `yymmdd_tasks.md`, and delegates back to `/plan-convert` for the next picks.
+
+## Rules that hold across the pipeline
+
+- **`Bin/` vs `Reports/`** — All data transformations live in `Scripts/Bin/` and are runnable as standalone bash calls (`Rscript Scripts/Bin/<name>.R <args>`, `python Scripts/Bin/<name>.py <args>`, `bash Scripts/Bin/<name>.sh <args>`). `Scripts/Reports/` only loads transformed inputs and renders figures/tables — it does not transform data.
+- **Canvas-first** — When a report's output is wrong, update the canvas first, then regenerate or surgically edit the code, then re-run. Code without a canvas is mistrusted.
+- **Provenance trailer** — Every commit that implements a canvas ends with `Implements: Prompts/canvases/NNN_slug.md` (one trailer line per canvas if multiple).
+- **Figure backlink** — Every figure caption ends with `(canvas: NNN)`.
+- **No re-compute** — Wrap expensive functions with cacheR; resolve "latest" via `get_latest_cache()`, never hardcode dated paths. Re-run downstream when upstream changes.
+- **Static side wins** — Script headers, `INDEX.md`, and `dependencies.json` are the static picture; `RUN_LOG.md` is the dynamic trace. When they disagree, fix the static side.
+---END PIPELINE.md TEMPLATE---
