@@ -203,9 +203,10 @@ When creating `CLAUDE.md` for a new project (both Print Mode and Setup Mode), us
 ## Computing Environment
 
 ### R
-- Use `R45` for the newest R version
+- If the project already has an R environment (`renv.lock`, an active `renv/` directory, or a documented R version), **keep using it** — do not switch versions mid-project
+- Otherwise, use the newest R available on the system
 - Reproducible environment via `renv`
-- Install cacheR from: `/home/vfranke/Projects/VFranke_cacheR/cacheR`
+- Install cacheR from GitHub: `remotes::install_github("BIMSBbioinfo/cacheR")` (https://github.com/BIMSBbioinfo/cacheR)
 
 ### Python
 - Base Python: `/home/vfranke/bin/mamba/miniforge/bin/python`
