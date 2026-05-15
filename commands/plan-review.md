@@ -108,19 +108,22 @@ This ensures the audit commit in Phase 4 only contains audit-driven changes, not
 
 ---
 
-## Phase 5b: Canvas creation (inline, new format only)
+## Phase 5b: Canvas creation (delegate to `/plan-convert`, new format only)
 
 **Goal**: Lock down intent in a structured canvas before code is written
 
 **Actions**: for each item the user approved for canvasing in Phase 5 step 4:
 
-1. Run the procedure described in `~/.claude/commands/plan-convert.md` **Phases 2–4 verbatim**:
-   - Phase 2: allocate the next `NNN` and generate slug
-   - Phase 3: gather upstream/downstream context (Explore agent if useful)
-   - Phase 4: draft the canvas at `Prompts/canvases/NNN_slug.md` using the six-section template
-2. Move the item in `implementation.md`: `## Todo` → `## In progress`, and append `→ Prompts/canvases/NNN_slug.md` to the item line.
-3. Set the canvas YAML `status: in_progress` (matching its section).
-4. Skip Phase 6 of `plan-convert` (its "suggest next step") — this command handles that in Phase 5c.
+1. **Invoke `/plan-convert <N>`** (via the Skill tool), where `<N>` is the item's position in `## Todo`. `/plan-convert` is the canonical implementation of canvas creation — do not replicate its logic here. It handles, end-to-end:
+   - Allocating the next `NNN` and generating the slug (its Phase 2)
+   - Gathering upstream/downstream context (its Phase 3)
+   - Drafting the canvas at `Prompts/canvases/NNN_slug.md` using the six-section template (its Phase 4)
+   - Moving the item from `## Todo` → `## In progress` in `implementation.md` and appending the `→ Prompts/canvases/NNN_slug.md` backlink (its Phase 5)
+2. After the invocation returns, capture the resulting canvas path so Phase 5c can reference it.
+3. Set the canvas YAML `status: in_progress` if `/plan-convert` left it as `todo` — section and status must stay in lockstep.
+4. `/plan-convert`'s Phase 6 ("suggest next step") output is informational and may be ignored; this command produces its own next-step recommendation in Phase 5c.
+
+If `/plan-convert` is unavailable for any reason (e.g. command file missing), fall back to performing its Phases 2–5 inline, then proceed.
 
 ---
 
