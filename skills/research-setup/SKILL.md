@@ -171,7 +171,7 @@ When creating `CLAUDE.md` for a new project (both Print Mode and Setup Mode), us
 ---BEGIN CLAUDE.md TEMPLATE---
 # <project_name> — Project Conventions
 
-> Workflow, command I/O, and provenance chain: see `PIPELINE.md` at project root.
+> Workflow, command I/O, provenance chain, canvas-before-code rule: see `PIPELINE.md` at project root.
 
 ## Folders
 
@@ -189,8 +189,7 @@ When creating `CLAUDE.md` for a new project (both Print Mode and Setup Mode), us
     ├── PIPELINE.md, CHANGELOG.md
 
 - Downloaded data → `Data/` with `README` (source + date)
-- cacheR output: `<data_folder>/<project_name>/Results/cacheR`
-- Reports numbered; maintain `00_Report` with summary + links
+- `CHANGELOG.md` = cross-session memory; update every meaningful unit, record failed approaches, note blockers
 
 ## Environment
 
@@ -204,14 +203,11 @@ When creating `CLAUDE.md` for a new project (both Print Mode and Setup Mode), us
 - Every Bin/ script is standalone bash-callable: `Rscript|python|bash Scripts/Bin/<name> <args>` — args in, no hidden state
 - `Scripts/Reports/` only loads Bin/ outputs and renders; never transforms
 - Notebook exploration ok; the moment it feeds a downstream artifact, move it to Bin/
-- Wrap expensive work with cacheR; never recompute
-- Validate against positive/negative controls from `research_plan.md` before trusting downstream
 
 ## Data Provenance
 
 - Newest upstream always — never hardcode dated paths. Use `get_latest_cache()` or date-sorted glob
 - Re-run downstream when upstream changes; warn if cache stale vs upstream mtime
-- Output → canvas → script → prompt: if any link missing, output not trusted
 
 ## Report Input Files
 
@@ -223,15 +219,7 @@ Every figure caption covers: **input** (source, filter/transform), **method** (f
 
 ## Oracle Testing
 
-Validate against established tools. On disagreement, bisect upstream. No fudge factors — find the bug.
-
-## CHANGELOG.md
-
-Read at session start; update after every meaningful unit; record **failed approaches** so they aren't re-attempted; note blockers and new tasks.
-
-## Context Window Hygiene
-
-Summaries not data frames; verbose diagnostics → `Prompts/Logs/`; `head()` / summaries, never dump full tables.
+Validate against established tools and the positive/negative controls in `research_plan.md` before trusting downstream. On disagreement, bisect upstream. No fudge factors — find the bug.
 
 ## Script Tracking
 
@@ -248,25 +236,7 @@ Summaries not data frames; verbose diagnostics → `Prompts/Logs/`; `head()` / s
 
 ## Analysis Dependencies
 
-`Prompts/dependencies.json` — DAG of data → reports → figures:
-
-    { "nodes": [{"id": "raw_counts", "type": "data", "path": "Data/counts.csv"},
-                 {"id": "norm_report", "type": "report", "path": "Scripts/Reports/01_Normalization.Rmd"}],
-      "edges": [{"from": "raw_counts", "to": "norm_report"}] }
-
-Update on add/modify. Static side (headers, INDEX.md, dependencies.json) is the source of truth; `RUN_LOG.md` is the dynamic trace. When they disagree, fix the static side.
-
-## Code Quality
-
-Never commit secrets / credentials / `.env`. Follow `/karpathy-guidelines`.
-
-## Prompt-Driven Workflow
-
-Every analysis traces back: figure → canvas → implementation.md → PROMPT_LOG.md. See `PIPELINE.md` for the full diagram, per-command I/O, and lifecycle. Core rules:
-
-- Canvas before code; fix the prompt first when output is wrong (hot-fix exception: cosmetic tweaks — axis labels, colors, typos — bypass canvas updates)
-- Canvas-implementing commits end with `Implements: Prompts/canvases/NNN_slug.md` (one trailer per canvas)
-- Every figure caption ends with `(canvas: NNN)`
+`Prompts/dependencies.json` — DAG of data → reports → figures (`nodes`, `edges` arrays). Update on add/modify. Static side (headers, INDEX.md, dependencies.json) is source of truth; `RUN_LOG.md` is the dynamic trace. When they disagree, fix the static side.
 ---END CLAUDE.md TEMPLATE---
 
 ---
