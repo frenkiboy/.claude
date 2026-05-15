@@ -171,258 +171,102 @@ When creating `CLAUDE.md` for a new project (both Print Mode and Setup Mode), us
 ---BEGIN CLAUDE.md TEMPLATE---
 # <project_name> — Project Conventions
 
-## Folder Structure
+> Workflow, command I/O, and provenance chain: see `PIPELINE.md` at project root.
+
+## Folders
 
     <home_folder>/
     ├── Scripts/
-    │   ├── Bin/          # All functions and executables
-    │   └── Reports/      # All R Markdown reports
-    ├── Results/          # All figures created by reports
-    ├── Data/             # Symlink to <data_folder>/<project_name>/Data
-    ├── Documentation/    # Processed data downloaded from publications
+    │   ├── Bin/          # Transformations + functions (standalone bash callable)
+    │   └── Reports/      # Final reports only — render, never transform
+    ├── Results/<report>/yymmdd_Type_Name.pdf
+    ├── Data/             # symlink → <data_folder>/<project_name>/Data
+    ├── Documentation/    # processed data from publications
     ├── Prompts/
-    │   ├── research_plan.md       # High-level plan
-    │   ├── implementation.md      # Curated request backlog
-    │   ├── canvases/              # Structured prompts, committed with code
-    │   └── Logs/
-    │       ├── PROMPT_LOG.md      # Auto: every user prompt
-    │       └── RUN_LOG.md         # Auto: every script invocation
-    └── CHANGELOG.md      # Shared memory across Claude sessions
+    │   ├── research_plan.md, implementation.md
+    │   ├── canvases/NNN_slug.md
+    │   └── Logs/{PROMPT,RUN}_LOG.md    # auto, append-only
+    ├── PIPELINE.md, CHANGELOG.md
 
-### Rules
-
-- `Data/` is a **symlink** to `<data_folder>/<project_name>/Data`
-- Downloaded data goes in `Data/` with a `README` (source + download date)
-- `Documentation/` holds processed data tables from publications
-- `Results/<report_name>/` — figure names: `yymmdd_Figure-type_Figure-name.pdf`
+- Downloaded data → `Data/` with `README` (source + date)
 - cacheR output: `<data_folder>/<project_name>/Results/cacheR`
-- Reports rendered in `./Scripts/Reports`, output in folder `yymmdd_DESCRIPTION`
-- All figures numbered; maintain `00_Report` with summary and links to all reports
-- Every script in `Scripts/Bin/` carries a header (Purpose/Inputs/Outputs/Upstream/Downstream); listed in `Scripts/INDEX.md`
+- Reports numbered; maintain `00_Report` with summary + links
 
-## Computing Environment
+## Environment
 
-### R
-- If the project already has an R environment (`renv.lock`, an active `renv/` directory, or a documented R version), **keep using it** — do not switch versions mid-project
-- Otherwise, use the newest R available on the system
-- Reproducible environment via `renv`
-- Install cacheR from GitHub: `remotes::install_github("BIMSBbioinfo/cacheR")` (https://github.com/BIMSBbioinfo/cacheR)
+- **R** — keep existing env if `renv.lock` / active `renv/` / documented version exists; else newest R on system. `renv` for reproducibility. cacheR: `remotes::install_github("BIMSBbioinfo/cacheR")`
+- **Python** — base `/home/vfranke/bin/mamba/miniforge/bin/python`; per-project conda/mamba or venv
+- **Git** — repo in `<home_folder>`; canvas-implementing commits carry `Implements:` trailer
 
-### Python
-- Base Python: `/home/vfranke/bin/mamba/miniforge/bin/python`
-- Per-project reproducible env via conda/mamba or venv
+## Bin/ vs Reports/ (core rule)
 
-### Git
-- Repository is initialized in `<home_folder>`
-- Commits implementing a canvas carry an `Implements:` trailer (see Prompt-Driven Workflow)
-
-## Execution Guidelines
-
-- Wrap expensive functions with cacheR — never re-compute what's already cached
-- Reports in `Scripts/Reports/` must be self-contained R Markdown / Quarto / Jupyter
-- Shared functions go in `Scripts/Bin/` and are sourced/imported by reports — never copy-paste between reports
-- For long-running jobs, log progress to `Prompts/Logs/` not stdout
-- Validate against positive/negative controls listed in `Prompts/research_plan.md` before trusting downstream results
-
-## Data Transformation
-
-Every data transformation — filtering, normalization, joining, reshaping, summarization, format conversion — must live in a versioned script or function under `Scripts/Bin/`. `Scripts/Reports/` is reserved for **final reports only** — reports load already-transformed inputs and visualize/summarize them; they do not transform data themselves. No ad-hoc REPL transformations, no one-off `awk` / `sed` pipelines in a chat scratchpad, no in-memory mutations that aren't backed by a file in `Scripts/Bin/`.
-
-- **Standalone bash invocable.** Every transformation script must run as a self-contained command: `Rscript Scripts/Bin/<name>.R <args>`, `python Scripts/Bin/<name>.py <args>`, `bash Scripts/Bin/<name>.sh <args>`. Inputs and parameters come in as CLI arguments — no required interactive state, no hidden globals, no "open this notebook and run cells 1–7 first."
-- **Result → transformation traceable.** Every output artifact (figure, table, cached object, processed data file) must be chainable back to the exact script + arguments + canvas + prompt that created it. The chain is: `RUN_LOG.md` records the invocation, the script header names its canvas, the figure caption carries `(canvas: NNN)`, the canvas links to `PROMPT_LOG.md`. If any link is missing for an output, the output is not trusted.
-- Exploration in a notebook is fine — but the moment a transformation feeds a downstream artifact, move it into `Scripts/Bin/` and re-run it as a standalone bash call. If you find yourself transforming data inside a report under `Scripts/Reports/`, that's a signal to extract the transformation into `Scripts/Bin/` and have the report consume its output.
+- All transformations (filter, normalize, join, reshape, summarize, convert) live in `Scripts/Bin/`
+- Every Bin/ script is standalone bash-callable: `Rscript|python|bash Scripts/Bin/<name> <args>` — args in, no hidden state
+- `Scripts/Reports/` only loads Bin/ outputs and renders; never transforms
+- Notebook exploration ok; the moment it feeds a downstream artifact, move it to Bin/
+- Wrap expensive work with cacheR; never recompute
+- Validate against positive/negative controls from `research_plan.md` before trusting downstream
 
 ## Data Provenance
 
-Always use the **newest results** from upstream steps. Never hardcode dated paths.
-
-- Document upstream dependencies at the top of each Rmd (comment block or YAML header)
-- Use `get_latest_cache()` or glob sorted by date to resolve latest cacheR output
-- Re-run downstream reports when upstream changes
-- Warn if cached outputs are stale relative to upstream report modification time
+- Newest upstream always — never hardcode dated paths. Use `get_latest_cache()` or date-sorted glob
+- Re-run downstream when upstream changes; warn if cache stale vs upstream mtime
+- Output → canvas → script → prompt: if any link missing, output not trusted
 
 ## Report Input Files
 
-Every `.Rmd` must list **all input files** it consumes near the top (in a YAML `inputs:` block or a "## Inputs" section). For each file:
-
-- **Path**: full or project-relative
-- **Type**: raw data, cacheR output, upstream report figure/table, external/published
-- **Source**: which report or pipeline produced it (or the publication if external)
-- **Used for**: brief reason it's loaded in this report
-
-Update the list when the code changes — stale input documentation is worse than none.
+Every `.Rmd` lists inputs near top (YAML `inputs:` or `## Inputs` section), each as: **path, type** (raw / cacheR / upstream figure / external), **source** (producing report or publication), **used for**. Update with code.
 
 ## Figure Documentation
 
-Every figure must have a description (in `fig.cap` or preceding paragraph) covering:
-- **Input data**: source, file path, filtering/transformation
-- **Method**: functions, parameters, statistical tests, thresholds
-- **What it shows**: plain-language interpretation
-
-Keep descriptions in sync with code — update when the generating code changes.
-
-## Code Quality
-
-- Read files before editing; prefer editing over creating new files
-- Fail fast with clear, actionable error messages (operation, input, suggested fix)
-- Never commit secrets, credentials, or .env files
-- Follow `/karpathy-guidelines`: think first, simplicity first, surgical changes, goal-driven execution
-
-## Session Orientation
-
-1. Read `CHANGELOG.md` for status, next steps, and blockers
-2. Pick the next task
-3. Update `CHANGELOG.md` before stopping
-
-## CHANGELOG.md as Shared Memory
-
-- Update after every meaningful unit of work
-- Check off completed items with dates
-- **Record failed approaches** so they aren't re-attempted
-- Note blockers and newly discovered tasks
+Every figure caption covers: **input** (source, filter/transform), **method** (functions, params, tests, thresholds), **what it shows**. Caption ends with `(canvas: NNN)`. Keep in sync with code.
 
 ## Oracle Testing
 
-Validate against established tools. When results disagree, bisect upstream to find divergence. Never add fudge factors — find the bug.
+Validate against established tools. On disagreement, bisect upstream. No fudge factors — find the bug.
+
+## CHANGELOG.md
+
+Read at session start; update after every meaningful unit; record **failed approaches** so they aren't re-attempted; note blockers and new tasks.
 
 ## Context Window Hygiene
 
-- Print summaries, not full data frames
-- Log verbose diagnostics to `Prompts/Logs/`, not stdout
-- Use `head()` / summary views, never dump entire tables
-
-## Analysis Dependencies
-
-Maintain `Prompts/dependencies.json` — a DAG tracking data flow from inputs to figures:
-
-    {
-      "nodes": [
-        {"id": "raw_counts", "type": "data",   "path": "Data/counts.csv"},
-        {"id": "norm_report", "type": "report", "path": "Scripts/Reports/01_Normalization.Rmd"},
-        {"id": "fig_pca",     "type": "figure", "path": "Results/01_Normalization/260420_PCA_samples.pdf"}
-      ],
-      "edges": [
-        {"from": "raw_counts",  "to": "norm_report"},
-        {"from": "norm_report", "to": "fig_pca"}
-      ]
-    }
-
-Update when adding/modifying analysis steps. When upstream changes, re-run downstream and update prose.
+Summaries not data frames; verbose diagnostics → `Prompts/Logs/`; `head()` / summaries, never dump full tables.
 
 ## Script Tracking
 
-Mixed-language projects (bash + R + Python) become opaque without a consistent script manifest. Two mechanisms — one automated, one by convention.
+- **`Prompts/Logs/RUN_LOG.md`** — PostToolUse hook auto-appends every Rscript / python / snakemake / bash invocation. Append-only; read tail at session start.
+- **`Scripts/INDEX.md`** — one row per script: `| Path | Lang | Purpose | Inputs | Outputs | Upstream | Downstream |`. Stale rows worse than none.
+- **Header** (every `Scripts/Bin/` file and `.Rmd` preamble):
 
-### `Prompts/Logs/RUN_LOG.md` (automated)
+      # Canvas:     Prompts/canvases/NNN_slug.md
+      # Purpose:    <one line, mirrors canvas Question>
+      # Inputs:     <path> (<type>), ...
+      # Outputs:    <path> (<type>), ...
+      # Upstream:   <script/report producing inputs>
+      # Downstream: <script/report consuming outputs>
 
-A global PostToolUse hook auto-appends every Bash script invocation (Rscript, python, snakemake, bash *.sh, ./*.{R,py,sh,Rmd}, etc.) to this file. **Never edit manually** — it's an append-only execution trace. At session start, read the tail to see what last ran. If the file doesn't exist yet, it'll be created the first time a matching command runs.
+## Analysis Dependencies
 
-### `Scripts/INDEX.md` (by hand)
+`Prompts/dependencies.json` — DAG of data → reports → figures:
 
-Maintain a one-row-per-script table covering everything in `Scripts/Bin/` and `Scripts/Reports/`:
+    { "nodes": [{"id": "raw_counts", "type": "data", "path": "Data/counts.csv"},
+                 {"id": "norm_report", "type": "report", "path": "Scripts/Reports/01_Normalization.Rmd"}],
+      "edges": [{"from": "raw_counts", "to": "norm_report"}] }
 
-| Path | Lang | Purpose | Inputs | Outputs | Upstream | Downstream |
-|------|------|---------|--------|---------|----------|------------|
+Update on add/modify. Static side (headers, INDEX.md, dependencies.json) is the source of truth; `RUN_LOG.md` is the dynamic trace. When they disagree, fix the static side.
 
-Update whenever a script is added, renamed, or repurposed. Stale rows are worse than no index.
+## Code Quality
 
-### Script header convention
-
-Every script in `Scripts/Bin/` (and the YAML/preamble of every `.Rmd`) starts with:
-
-    # Purpose:    <one line>
-    # Inputs:     <path> (<type>), ...
-    # Outputs:    <path> (<type>), ...
-    # Upstream:   <script or report that produces inputs>
-    # Downstream: <script or report that consumes outputs>
-
-Headers, INDEX.md, and `dependencies.json` together form the static picture; `RUN_LOG.md` is the dynamic execution trace. When they disagree, fix the static side.
+Never commit secrets / credentials / `.env`. Follow `/karpathy-guidelines`.
 
 ## Prompt-Driven Workflow
 
-Prompts are first-class artifacts in this project — versioned, reviewable, and committed alongside the code they produce. **See `PIPELINE.md` at the project root for the full pipeline diagram and per-command I/O table.**
+Every analysis traces back: figure → canvas → implementation.md → PROMPT_LOG.md. See `PIPELINE.md` for the full diagram, per-command I/O, and lifecycle. Core rules:
 
-### The four files
-
-| File | What goes in | Edit policy |
-|------|--------------|-------------|
-| `Prompts/Logs/PROMPT_LOG.md`   | Every user prompt verbatim, auto-appended by hook | Never edit by hand |
-| `Prompts/implementation.md`    | Curated backlog of real requests (`## Todo` / `## In progress` / `## Done`) | Hand-curated; triage from PROMPT_LOG |
-| `Prompts/canvases/NNN_slug.md` | One structured prompt per task, written before the code it drives | Update before code, commit together |
-| `Prompts/research_plan.md`     | High-level scientific plan (rare changes) | Hand-curated |
-
-### The flow
-
-1. You type a request → hook auto-appends to `PROMPT_LOG.md`
-2. `/triage` (or by hand): promote real requests from the log into `implementation.md` under `## Todo`
-3. `/plan-convert` (or by hand): turn an `implementation.md` item into a structured canvas in `Prompts/canvases/NNN_slug.md`
-4. `/plan-exec` style execution: generate code from the canvas, commit canvas + code together
-5. Move the `implementation.md` entry to `## Done` with a backlink to the canvas
-
-### Canvas file format
-
-Each canvas is a markdown file at `Prompts/canvases/NNN_slug.md` with this front matter and body:
-
-    ---
-    id: 003
-    slug: normalization
-    created: 2026-05-10
-    source_prompt_log: 2026-05-10T14:32:15  # timestamp anchor in PROMPT_LOG.md
-    implementation_md_item: "Normalize counts with size factors"
-    status: in_progress  # todo | in_progress | done
-    ---
-
-    # Question
-    What scientific question does this answer? (one sentence)
-
-    # Entities
-    Data, samples, features, metadata involved. Reference paths.
-
-    # Approach
-    Methods, packages, parameters, thresholds. Be specific.
-
-    # Structure
-    Upstream: which canvases / reports / data feed this
-    Downstream: which canvases / reports / outputs depend on it
-
-    # Operations
-    Numbered steps the report will perform.
-
-    # Safeguards
-    Sanity checks, oracle tests, validation against established tools.
-
-### Per-report header (`.Rmd` / `.R` / `.py`)
-
-Every analysis script starts with a comment block pointing at its canvas:
-
-    # Canvas:     Prompts/canvases/003_normalization.md
-    # Purpose:    <one line, mirrors canvas Question>
-    # Inputs:     <path> (<type>), ...
-    # Outputs:    <path> (<type>), ...
-    # Upstream:   <canvas/report producing inputs>
-    # Downstream: <canvas/report consuming outputs>
-
-### Fix the prompt first
-
-When a report's output is wrong, the rule is:
-
-1. Update the canvas (intent, parameters, method) — **first**
-2. Regenerate or surgically edit the script to match
-3. Re-run, re-commit
-
-Editing code without updating the canvas turns the canvas into a lie about what the code does, and the provenance chain breaks. Hot-fix exception: trivial cosmetic tweaks (axis labels, colours, typos) can skip canvas updates — but the prompt that requested them still lives in `PROMPT_LOG.md` so it's not invisible.
-
-### Provenance commit trailer
-
-Every commit that implements a canvas ends with:
-
-    Implements: Prompts/canvases/003_normalization.md
-
-Multiple canvases per commit go on separate trailer lines. This makes the chain queryable: `git log --grep "canvases/003"` finds every commit that touched a given task.
-
-### Figure → canvas backlink
-
-Every figure caption ends with `(canvas: NNN)` so the prompt that drove the figure can be recovered six months later from the figure alone.
+- Canvas before code; fix the prompt first when output is wrong (hot-fix exception: cosmetic tweaks — axis labels, colors, typos — bypass canvas updates)
+- Canvas-implementing commits end with `Implements: Prompts/canvases/NNN_slug.md` (one trailer per canvas)
+- Every figure caption ends with `(canvas: NNN)`
 ---END CLAUDE.md TEMPLATE---
 
 ---
