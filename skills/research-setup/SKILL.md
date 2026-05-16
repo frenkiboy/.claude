@@ -153,6 +153,16 @@ Ask the user to fill in (use `$ARGUMENTS` for project_name if provided):
 2. Create `Data/` as a **symlink** to `<data_folder>/<project_name>/Data` (create target if needed)
 3. Set up computing environment (R with renv, Python env)
 4. Initialize git repository
+4b. **Ask about data versioning.** Default answer: `none`. Present the four options below; if the user picks a tool, initialize it right after git init and record the choice in CLAUDE.md (one-liner under `## Environment`, e.g. `- **Data versioning** — DVC; data remote at <...>`).
+
+    > Use a "git for data" tool? [`dvc` | `datalad` | `git-lfs` | `none`]
+    >
+    > - **DVC** (recommended default if picking anything) — `dvc init` next to git. Small `.dvc` pointer files committed to git; data blobs in a separate remote (S3 / SSH / local). R/Python-friendly. Best when multiple people/machines need synchronized data versions.
+    > - **DataLad** — git-annex based, built for scientific datasets. Strong in neuroimaging / genomics; BIDS-native. Heavier setup, richer metadata. Pick this if collaborating in the academic ecosystem.
+    > - **git-lfs** — simplest, GitHub-native, file-level only. OK when total data <100 GB and you don't want a new tool.
+    > - **none** — for projects where `Data/` lives entirely on shared filesystem (the common case here: `Data/` symlink → external `data_folder`). In that case, prefer content hashing in `Prompts/dependencies.json` (e.g. `sha256` field on each data node) over a full data-versioning tool.
+
+    For `none`, no initialization; just continue. CLAUDE.md gets no extra line.
 5. Create `CHANGELOG.md` with project name header and "Project created" entry dated today
 6. Write `CLAUDE.md` using the template below
 6b. Write `PIPELINE.md` at the project root using the "PIPELINE.md Template" section below
@@ -208,10 +218,7 @@ When creating `CLAUDE.md` for a new project (both Print Mode and Setup Mode), us
 
 - Newest upstream always — never hardcode dated paths. Resolve "latest" via a date-sorted glob.
 - Re-run downstream when upstream changes; warn if cache stale vs upstream mtime
-- **Version large/evolving data with "git for data"** — git itself is text-friendly only. Pick one:
-  - **[DVC](https://dvc.org/)** — `dvc init` alongside git; small `.dvc` pointer files committed to git, blobs in a separate remote (S3 / SSH / local). Default recommendation; R/Python-friendly.
-  - **[DataLad](https://www.datalad.org/)** — git-annex based, built for scientific datasets (strong in neuroimaging / genomics, BIDS-native). Heavier setup, richer metadata.
-  - **[git-lfs](https://git-lfs.com/)** — simplest, GitHub-native, file-level only. OK when data fits in <100 GB and no new tools wanted.
+- Data-versioning tool (if any) recorded in `## Environment`
 
 ## Report Input Files
 
