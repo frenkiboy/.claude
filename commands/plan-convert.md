@@ -1,6 +1,6 @@
 ---
 description: Turn an item from Prompts/implementation.md into a structured canvas at Prompts/canvases/NNN_slug.md
-argument-hint: [item-text-or-number-from-implementation.md]
+argument-hint: [next | item-number | item-text]
 allowed-tools: [Read, Write, Edit, Glob, Grep, Bash(ls:*), Bash(date:*), Bash(mkdir:*), Bash(git status:*), Agent]
 ---
 
@@ -14,10 +14,11 @@ You take a single item from `Prompts/implementation.md` and turn it into a struc
 
 1. Read `Prompts/implementation.md`. If missing, tell the user the file isn't there and stop.
 2. Resolve `$ARGUMENTS`:
-   - If a **number** (e.g. `2`): take the Nth item from `## Todo`.
-   - If **text**: fuzzy-match against Todo items.
-   - If **empty**: list all Todo items and ask the user which one.
-3. Read the source-prompt log entry referenced by the item (the `[log: <iso>]` marker) so you have the user's verbatim wording for context.
+   - `next` (literal token): take the **first** item from `## Todo` (item #1). If `## Todo` is empty, tell the user and stop.
+   - A **number** (e.g. `2`): take the Nth item from `## Todo`.
+   - **Text**: fuzzy-match against Todo items.
+   - **Empty**: list all Todo items and ask the user which one.
+3. Read the source-prompt log entry referenced by the item (the `[log: <iso>]` marker) so you have the user's verbatim wording for context. If the item has no `[log:]` marker (e.g. it came from `/research-to-implementation` and carries `[phase: N]` instead), skip this step and use the item's own text as the wording.
 
 ---
 
