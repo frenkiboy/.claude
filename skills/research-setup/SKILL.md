@@ -206,8 +206,12 @@ When creating `CLAUDE.md` for a new project (both Print Mode and Setup Mode), us
 
 ## Data Provenance
 
-- Newest upstream always — never hardcode dated paths. Use `get_latest_cache()` or date-sorted glob
+- Newest upstream always — never hardcode dated paths. Resolve "latest" via a date-sorted glob.
 - Re-run downstream when upstream changes; warn if cache stale vs upstream mtime
+- **Version large/evolving data with "git for data"** — git itself is text-friendly only. Pick one:
+  - **[DVC](https://dvc.org/)** — `dvc init` alongside git; small `.dvc` pointer files committed to git, blobs in a separate remote (S3 / SSH / local). Default recommendation; R/Python-friendly.
+  - **[DataLad](https://www.datalad.org/)** — git-annex based, built for scientific datasets (strong in neuroimaging / genomics, BIDS-native). Heavier setup, richer metadata.
+  - **[git-lfs](https://git-lfs.com/)** — simplest, GitHub-native, file-level only. OK when data fits in <100 GB and no new tools wanted.
 
 ## Report Input Files
 
@@ -358,6 +362,6 @@ If any link in the chain is missing for a result, the result is **not** trusted.
 - **Canvas-first** — When a report's output is wrong, update the canvas first, then regenerate or surgically edit the code, then re-run. Code without a canvas is mistrusted.
 - **Provenance trailer** — Every commit that implements a canvas ends with `Implements: Prompts/canvases/NNN_slug.md` (one trailer line per canvas if multiple).
 - **Figure backlink** — Every figure caption ends with `(canvas: NNN)`.
-- **No re-compute** — Wrap expensive functions with cacheR; resolve "latest" via `get_latest_cache()`, never hardcode dated paths. Re-run downstream when upstream changes.
+- **No re-compute** — Wrap expensive functions with cacheR; resolve "latest" via a date-sorted glob, never hardcode dated paths. Re-run downstream when upstream changes.
 - **Static side wins** — Script headers, `INDEX.md`, and `dependencies.json` are the static picture; `RUN_LOG.md` is the dynamic trace. When they disagree, fix the static side.
 ---END PIPELINE.md TEMPLATE---
