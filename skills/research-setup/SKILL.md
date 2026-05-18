@@ -219,6 +219,8 @@ Every `.Rmd` lists inputs near top (YAML `inputs:` or `## Inputs` section), each
 
 Every figure caption covers: **input** (source, filter/transform), **method** (functions, params, tests, thresholds), **what it shows**. Caption ends with `(canvas: NNN)`. Keep in sync with code.
 
+**Knit output**: every figure saved as a PDF under `Results/<report>/` named `<yymmdd>_<Type>_<Name>.pdf` (e.g. `260518_Volcano_treated-vs-ctrl.pdf`). R Markdown chunk defaults: `dev = "pdf"`, `fig.path = "Results/<NN_report>/<yymmdd>_"`.
+
 ## Oracle Testing
 
 Validate against established tools and the positive/negative controls in `research_plan.md` before trusting downstream. On disagreement, bisect upstream. No fudge factors — find the bug.
@@ -362,6 +364,7 @@ If any link in the chain is missing for a result, the result is **not** trusted.
 - **Hot-fix exception** — Cosmetic edits (axis labels, colors, typos, simple renames) bypass canvas-first. `PROMPT_LOG.md` already preserves the request; no canvas, no `Implements:` trailer needed. `/triage` classifies these as Hot-fix and skips the backlog too.
 - **Provenance trailer** — Every commit that implements a canvas ends with `Implements: Prompts/canvases/NNN_slug.md` (one trailer line per canvas if multiple).
 - **Figure backlink** — Every figure caption ends with `(canvas: NNN)`.
+- **PDF figures, dated** — Knit saves every figure as a PDF under `Results/<report>/<yymmdd>_<Type>_<Name>.pdf`. R Markdown chunk defaults: `dev = "pdf"`, `fig.path = "Results/<NN_report>/<yymmdd>_"`.
 - **No re-compute** — Wrap expensive functions with cacheR; resolve "latest" via a date-sorted glob, never hardcode dated paths. Re-run downstream when upstream changes.
 - **Static side wins** — Script headers, `INDEX.md`, and `dependencies.json` are the static picture; `RUN_LOG.md` is the dynamic trace. When they disagree, fix the static side.
 ---END PIPELINE.md TEMPLATE---
