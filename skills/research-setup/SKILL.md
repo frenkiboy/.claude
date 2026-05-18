@@ -203,6 +203,7 @@ When creating `CLAUDE.md` for a new project (both Print Mode and Setup Mode), us
 - Every Bin/ script is standalone bash-callable: `Rscript|python|bash Scripts/Bin/<name> <args>` — args in, no hidden state
 - `Scripts/Reports/` only loads Bin/ outputs and renders; never transforms
 - Notebook exploration ok; the moment it feeds a downstream artifact, move it to Bin/
+- **All outputs go under `Results/<report>/`** — figures, tables, and any pipeline state (JSON / TSV trackers, lockfiles, run metadata) under `Results/<report>/pipeline_state/`. **Never write to `Data/`** — it's a symlink to external read-mostly storage.
 
 ## Data Provenance
 
@@ -356,6 +357,7 @@ If any link in the chain is missing for a result, the result is **not** trusted.
 ## Rules that hold across the pipeline
 
 - **`Bin/` vs `Reports/`** — All data transformations live in `Scripts/Bin/` and are runnable as standalone bash calls (`Rscript Scripts/Bin/<name>.R <args>`, `python Scripts/Bin/<name>.py <args>`, `bash Scripts/Bin/<name>.sh <args>`). `Scripts/Reports/` only loads transformed inputs and renders figures/tables — it does not transform data.
+- **Outputs go under `Results/<report>/`** — figures, tables, and pipeline state (JSON / TSV trackers, lockfiles, run metadata) live under `Results/<report>/pipeline_state/`. Never write to `Data/` — it's a symlink to external read-mostly storage and is treated as read-only.
 - **Canvas-first** — When a report's output is wrong, update the canvas first, then regenerate or surgically edit the code, then re-run. Code without a canvas is mistrusted.
 - **Hot-fix exception** — Cosmetic edits (axis labels, colors, typos, simple renames) bypass canvas-first. `PROMPT_LOG.md` already preserves the request; no canvas, no `Implements:` trailer needed. `/triage` classifies these as Hot-fix and skips the backlog too.
 - **Provenance trailer** — Every commit that implements a canvas ends with `Implements: Prompts/canvases/NNN_slug.md` (one trailer line per canvas if multiple).
