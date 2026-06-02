@@ -116,6 +116,14 @@ Also walk `Scripts/Bin/*.{R,py,sh}` files that look like top-level analysis scri
 - If it's clearly a transformation called by an existing report → no canvas needed; it's covered by the report's canvas
 - If it's standalone analysis (e.g. produces its own Results/ figures) → propose a canvas the same way
 
+While walking Bin/, also classify each file's **mode** (dual-mode is the standard — see CLAUDE.md "Bin/ vs Reports/" section):
+
+- **dual-mode** ✓ — defines a top-level function AND has a CLI shim (`if (sys.nframe() == 0)` in R, `if __name__ == "__main__":` in Python, `main()` pattern in bash). Nothing to do.
+- **function-only** — has the function definition but no CLI shim. Cannot be invoked by Snakemake / cron / `RUN_LOG`. Flag in Phase 8 summary as `SINGLE_MODE_FN_ONLY`.
+- **script-only** — runs top-level (no function wrapper). Cannot be `source()`'d cleanly by reports. Flag as `SINGLE_MODE_SCRIPT_ONLY`.
+
+Do **not** auto-refactor here — that's intrusive code editing on a retrofit pass. Report only; the user can opt into refactor per-file later via `/plan-convert` on a "make X dual-mode" Todo.
+
 ---
 
 ## Phase 4: Cross-link canvases (Structure section)
@@ -182,11 +190,13 @@ Run a mental `/plan-review` pass:
 - Every canvas's YAML `status:` matches its `implementation.md` section? ✓ / ✗
 - `dependencies.json` validates as JSON?
 - All `# Canvas:` headers in code point to existing canvas files?
+- Bin/ mode summary: count of dual-mode ✓ / function-only / script-only (from Phase 3 walk)
 
 Report the audit. If clean, suggest:
 - `/plan-review` for a fresh audit
 - `/plan-convert next` if any `## Todo` items exist (new work from research_plan retrofit)
 - `/grill-me Prompts/canvases/NNN_*.md` on any canvas where Approach contains `TBD`
+- For each `SINGLE_MODE_*` file flagged in Phase 3: suggest adding a Todo item like `make Scripts/Bin/<name> dual-mode (add CLI shim / function wrapper)` — small refactor, runs through `/plan-convert` → `/plan-exec` like any other task.
 
 If anything failed validation, list the specific files that need attention.
 
