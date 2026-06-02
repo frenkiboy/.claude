@@ -200,8 +200,8 @@ When creating `CLAUDE.md` for a new project (both Print Mode and Setup Mode), us
 ## Bin/ vs Reports/ (core rule)
 
 - All transformations (filter, normalize, join, reshape, summarize, convert) live in `Scripts/Bin/`
-- Every Bin/ script is standalone bash-callable: `Rscript|python|bash Scripts/Bin/<name> <args>` — args in, no hidden state
-- `Scripts/Reports/` only loads Bin/ outputs and renders; never transforms
+- **Dual-mode** — every Bin/ file defines a function AND has a CLI shim, so the same code serves both reports (sourced, in-memory) and pipelines (bash-callable, args in / file out). R: top-level `fn <- function(...)`, then `if (sys.nframe() == 0) { ... }` parses `commandArgs()` and writes the output file. Python: `def fn(...)`, then `if __name__ == "__main__":` with `argparse`. No hidden state in either branch.
+- `Scripts/Reports/` only loads Bin/ outputs and renders; never transforms. Prefer `source()` / `import` over `system("Rscript ...")` — subprocess shelling out per chunk is slow and loses in-memory objects.
 - Notebook exploration ok; the moment it feeds a downstream artifact, move it to Bin/
 - **All project outputs go under `Results/<report>/`** — figures, tables (TSV / CSV), JSON outputs, and pipeline state (lockfiles, run metadata) under `Results/<report>/pipeline_state/`. **Never write to `Data/`** (symlink to external read-mostly storage) **or to `Documentation/`** (reserved for processed data tables imported from publications — external inputs, not project outputs).
 
@@ -358,7 +358,7 @@ If any link in the chain is missing for a result, the result is **not** trusted.
 
 ## Rules that hold across the pipeline
 
-- **`Bin/` vs `Reports/`** — All data transformations live in `Scripts/Bin/` and are runnable as standalone bash calls (`Rscript Scripts/Bin/<name>.R <args>`, `python Scripts/Bin/<name>.py <args>`, `bash Scripts/Bin/<name>.sh <args>`). `Scripts/Reports/` only loads transformed inputs and renders figures/tables — it does not transform data.
+- **`Bin/` vs `Reports/`** — All data transformations live in `Scripts/Bin/`. Each file is **dual-mode**: a function definition plus a CLI shim (`if (sys.nframe() == 0)` in R, `if __name__ == "__main__":` in Python). Reports `source()`/`import` and call the function in-memory; pipelines (Snakemake, cron, manual reruns) invoke the CLI (`Rscript Scripts/Bin/<name>.R <args>`, `python Scripts/Bin/<name>.py <args>`, `bash Scripts/Bin/<name>.sh <args>`). `Scripts/Reports/` only renders — it does not transform.
 - **Project outputs go under `Results/<report>/`** — figures, tables (TSV / CSV), JSON outputs, and pipeline state (lockfiles, run metadata) live under `Results/<report>/pipeline_state/`. Never write to `Data/` (read-only symlink to external storage) or to `Documentation/` (reserved for external publication data tables, not project outputs).
 - **Canvas-first** — When a report's output is wrong, update the canvas first, then regenerate or surgically edit the code, then re-run. Code without a canvas is mistrusted.
 - **Hot-fix exception** — Cosmetic edits (axis labels, colors, typos, simple renames) bypass canvas-first. `PROMPT_LOG.md` already preserves the request; no canvas, no `Implements:` trailer needed. `/triage` classifies these as Hot-fix and skips the backlog too.
