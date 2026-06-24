@@ -149,7 +149,7 @@ Ask the user to fill in (use `$ARGUMENTS` for project_name if provided):
 
 ### Actions
 
-1. Create the folder structure shown in the template above (including `Prompts/Logs/` and `Prompts/canvases/`)
+1. Create the folder structure shown in the template above (including `Prompts/Logs/`, `Prompts/canvases/`, and `Prompts/findings/`)
 2. Create `Data/` as a **symlink** to `<data_folder>/<project_name>/Data` (create target if needed)
 3. Set up computing environment (R with renv, Python env)
 4. Initialize git repository
@@ -159,7 +159,8 @@ Ask the user to fill in (use `$ARGUMENTS` for project_name if provided):
 7. Seed `Scripts/INDEX.md` with the header row only: `| Path | Lang | Purpose | Inputs | Outputs | Upstream | Downstream |` plus separator row — no entries yet
 8. Seed `Prompts/implementation.md` with three empty sections: `## Todo`, `## In progress`, `## Done` — and a one-line preface explaining that `/triage` populates Todo from `PROMPT_LOG.md`
 9. Add a placeholder `Prompts/canvases/.gitkeep` so the empty directory tracks in git
-10. Install the project-scoped auto-logging hooks: copy `~/.claude/scripts/project-settings-template.json` to `<home_folder>/.claude/settings.json` (create the `.claude/` directory). This file activates `PROMPT_LOG.md` and `RUN_LOG.md` only when Claude Code runs in this project. If `.claude/settings.json` already exists, MERGE the `hooks` block in rather than overwriting the file.
+9b. Seed `Prompts/learnings.md` (project gotchas/insights — header + entry-format comment) and `Prompts/findings/FINDINGS_REGISTRY.md` (empty findings registry table). These back the learn-nudge Stop hook, `/finding`, and `/transfer`. Use the seed text in the "Learnings & Findings" subsection of the CLAUDE.md template below.
+10. Install the project-scoped auto-logging hooks: copy `~/.claude/scripts/project-settings-template.json` to `<home_folder>/.claude/settings.json` (create the `.claude/` directory). This file activates `PROMPT_LOG.md` and `RUN_LOG.md` (logging) plus the `work-marker`/`learn-nudge` Stop hook (the soft end-of-session learning nudge) only when Claude Code runs in this project. If `.claude/settings.json` already exists, MERGE the `hooks` block in rather than overwriting the file.
 11. Ask the user to describe the scientific analysis plan
 
 ---
@@ -185,6 +186,8 @@ When creating `CLAUDE.md` for a new project (both Print Mode and Setup Mode), us
     ├── Prompts/
     │   ├── research_plan.md, implementation.md
     │   ├── canvases/NNN_slug.md
+    │   ├── learnings.md                # project gotchas/insights → /transfer
+    │   ├── findings/{FINDINGS_REGISTRY,topic}.md   # evidence ledgers → /finding
     │   └── Logs/{PROMPT,RUN}_LOG.md    # auto, append-only
     ├── PIPELINE.md, CHANGELOG.md
 
@@ -241,6 +244,15 @@ Validate against established tools and the positive/negative controls in `resear
 ## Analysis Dependencies
 
 `Prompts/dependencies.json` — DAG of data → reports → figures (`nodes`, `edges` arrays). Each `data`-type node carries a `sha256` of its content (see Data Provenance). Update on add/modify. Static side (headers, INDEX.md, dependencies.json) is source of truth; `RUN_LOG.md` is the dynamic trace. When they disagree, fix the static side.
+
+## Learnings & Findings
+
+Two capture layers keep knowledge from evaporating between sessions:
+
+- **`Prompts/learnings.md`** — process/tooling gotchas, surprises, dead-ends (e.g. "library X fails silently on sparse input"). The learn-nudge **Stop hook** softly reminds you to add one when a working session ends without an entry. Newest at top. Mark broadly-useful entries `Beyond this project? yes` — `/transfer` promotes those up into global Claude memory for all projects.
+- **`Prompts/findings/`** — *scientific* results tracked as evidence ledgers, one `topic-slug.md` per topic, indexed by `FINDINGS_REGISTRY.md`. Each finding gets an `F-NNN` id, a status (tentative/supported/refuted), and evidence pointers (`canvas: NNN`, `Results/...`). Capture with `/finding`. Findings stay project-local (they're evidence, not transferable conventions); a figure caption may cite `(finding: F-NNN)` to close the loop.
+
+Seed `learnings.md` with a header + entry-format comment; seed `findings/FINDINGS_REGISTRY.md` with the registry header and an empty `| ID | Claim | Status | Topic | Updated |` table.
 ---END CLAUDE.md TEMPLATE---
 
 ---
@@ -263,6 +275,9 @@ This project's prompt-driven workflow chains a small set of slash commands and f
 | `Prompts/research_plan.md`          | High-level scientific plan                             | hand-curated |
 | `Prompts/implementation.md`         | Curated backlog (`## Todo` / `In progress` / `Done`)   | curated via `/triage` |
 | `Prompts/canvases/NNN_slug.md`      | Structured intent per task — locked before code        | written via `/plan-convert` |
+| `Prompts/learnings.md`              | Process/tooling gotchas & insights (newest first)      | nudged by Stop hook, promoted via `/transfer` |
+| `Prompts/findings/{topic}.md`       | Scientific evidence ledgers (`F-NNN`, status, evidence) | written via `/finding` |
+| `Prompts/findings/FINDINGS_REGISTRY.md` | Index of all findings                              | maintained by `/finding` |
 | `Scripts/Bin/<name>.{R,py,sh}`      | Data transformations (standalone bash callable)        | written via `/plan-exec` |
 | `Scripts/Reports/NN_<name>.Rmd`     | Final reports — consume Bin/ outputs, do not transform | written via `/plan-exec` |
 | `Results/<report>/yymmdd_*.pdf`     | Figures with `(canvas: NNN)` caption backlinks         | rendered by reports |
@@ -287,7 +302,10 @@ flowchart TD
     CNV -->|/plan-exec| RPT[Scripts/Reports/*<br/>final reports]:::code
     BIN -->|loaded by| RPT
     RPT -->|render| RES[(Results/*<br/>figures, tables)]:::out
+    RES -->|/finding| FND[(findings/*<br/>evidence ledgers)]:::doc
     BIN & RPT -->|PostToolUse hook| RLOG[(RUN_LOG.md)]:::log
+    BIN & RPT -.Stop hook nudge.-> LRN[(learnings.md)]:::doc
+    LRN -->|/transfer| MEM([global memory]):::ext
     BIN & RPT -->|"git commit (Implements:)"| GIT[(git log)]:::log
 
     IMPL & CNV & GIT -->|/plan-review| AUD[implementation.md audit<br/>implementation_summary.md<br/>Logs/yymmdd_tasks.md]:::doc
@@ -315,6 +333,8 @@ flowchart TD
 |----------------------|--------------------------------------------------------------------------------|----------------------------------------|
 | `UserPromptSubmit`   | user's prompt text                                                             | `Prompts/Logs/PROMPT_LOG.md` (append) |
 | `PostToolUse` (Bash) | script invocations matching `Rscript`, `python`, `snakemake`, `bash *.sh`, `./*.{R,py,sh,Rmd}` | `Prompts/Logs/RUN_LOG.md` (append)    |
+| `PostToolUse` (Edit/Write/Bash) | substantive-work signal | `Prompts/Logs/.work-<sid>` marker (transient) |
+| `Stop`               | `.work-<sid>` marker, `Prompts/learnings.md` mtime | one-time soft nudge to record a learning if work happened and none was logged |
 
 ### Slash commands
 
@@ -330,6 +350,8 @@ flowchart TD
 | `/plan-review [file]`          | `Prompts/implementation.md`, `Scripts/Bin/`, `Scripts/Reports/`, `Prompts/canvases/`, git log                    | audit commit to `implementation.md`, `Prompts/implementation_summary.md`, `Prompts/Logs/yymmdd_tasks.md`. **Delegates to `/plan-convert` for approved next steps**, suggests `/plan-exec` for immediate execution |
 | `/gogogo`                      | (composite)                                                                                                     | runs `/plan-review`, then `/plan-exec` on uncompleted items, then commits |
 | `/report`                      | git log, `CHANGELOG.md`, `Prompts/implementation.md`                                                            | status summary to chat |
+| `/finding [claim]`             | analysis context, `Prompts/findings/`                                                                            | new/updated `Prompts/findings/{topic}.md` evidence entry (`F-NNN`) + `FINDINGS_REGISTRY.md` row |
+| `/transfer [push\|pull]`       | sibling projects' `Prompts/learnings.md`, global `~/.claude/.../memory/`                                         | promotes generalizable learnings up to global memory (push) or surfaces relevant global memory into the project (pull) |
 | `/brainstorm`, `/brainstrom`   | project state, optional input files                                                                             | proposals for new analyses (no file writes unless requested) |
 | `/wup`                         | running tasks, agents, active plan progress                                                                     | session status summary to chat |
 
