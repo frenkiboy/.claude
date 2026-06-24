@@ -70,15 +70,6 @@
       "Read"
     ]
   },
-  "enabledPlugins": {
-    "code-review@claude-plugins-official": true
-  },
-  "skipDangerousModePermissionPrompt": true,
-  "theme": "dark-ansi",
-  "statusLine": {
-    "type": "command",
-    "command": "bash /home/vfranke/.claude/statusline.sh"
-  },
   "hooks": {
     "UserPromptSubmit": [
       {
@@ -91,5 +82,15 @@
         ]
       }
     ]
-  }
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash /home/vfranke/.claude/statusline.sh"
+  },
+  "enabledPlugins": {
+    "code-review@claude-plugins-official": true
+  },
+  "skipDangerousModePermissionPrompt": true,
+  "theme": "dark-ansi",
+  "tui": "fullscreen"
 }

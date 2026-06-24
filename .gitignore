@@ -34,4 +34,12 @@ plugins/known_marketplaces.json
 plugins/blocklist.json
 mcp-needs-auth-cache.json
 
+# Daemon / background-job runtime state
+daemon/
+jobs/
+daemon.lock
+daemon.log
+daemon.status.json
+.last-update-result.json
+
 # Keep skills, settings, commands, plugins
