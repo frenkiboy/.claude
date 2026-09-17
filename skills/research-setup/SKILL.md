@@ -229,6 +229,8 @@ Every figure caption covers: **input** (source, filter/transform), **method** (f
 
 **All figures are numbered automatically.** Every report's `setup` chunk sources `Scripts/Reports/_report_setup.R`, a knitr plot-hook that prefixes each `fig.cap` with `Figure N.` in order. Write captions **without** a manual number, and put them in `fig.cap` — not in a preceding paragraph. A hand-typed number is wrong the moment a figure is inserted above it, and a caption in a paragraph cannot be numbered, cross-referenced, or carried onto the saved figure.
 
+**No straight double quotes inside `fig.cap`.** They break out of the generated `<img alt="...">` attribute, pandoc degrades the whole tag to literal text, and the figure vanishes while its caption still renders — so the report looks fine unless you check that an `<img>` precedes every caption. Use single quotes or backticks inside captions.
+
 **Knit output**: every figure saved under `Results/<report>/` named `<yymmdd>_<Type>_<Name>.pdf` (e.g. `260518_Volcano_treated-vs-ctrl.pdf`). R Markdown chunk defaults: `dev = c("png", "pdf")`, `fig.path = "Results/<NN_report>/<yymmdd>_"`. Figures must exist as files, not only as base64 inside an HTML — an embedded-only figure cannot be dropped into a slide, a manuscript, or a second report.
 
 **Every rendered HTML carries a `<yymmdd>_` prefix** reflecting the render date: `rmarkdown::render(..., output_file = sprintf("%s_<report>.html", format(Sys.Date(), "%y%m%d")))`. Replace the prior dated copy so one current HTML per report remains.
