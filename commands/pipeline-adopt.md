@@ -36,6 +36,10 @@ Present a single tabular report:
     | .claude/settings.json (hooks)          | missing  | install |
     | Prompts/dependencies.json              | missing  | scaffold skeleton |
     | Scripts/INDEX.md                       | missing  | scaffold + populate |
+    | Scripts/Reports/_report_setup.R        | missing  | copy asset (figure auto-numbering) |
+    | Scripts/Bin/manuscript_theme.R         | missing  | copy asset + set PROJECT ROLES |
+    | Prompts/archive.md                     | missing  | seed |
+    | Prompts/datasets/ (N datasets)         | missing  | scaffold from _schema.yaml |
 
 Ask user to confirm before proceeding to Phase 2.
 
@@ -207,6 +211,7 @@ If anything failed validation, list the specific files that need attention.
 - **Don't overwrite an existing CLAUDE.md or PIPELINE.md** without showing a diff and asking
 - **Don't delete `implementation_plan.md`** even after migrating — keep as `.legacy.md` for reference
 - **Don't fabricate** Approach parameters where the code is genuinely unclear — write `TBD` and let `/grill-me` resolve them later
+- **Copy the report assets but convert reports ON TOUCH, not in a sweep.** Installing `_report_setup.R` and `manuscript_theme.R` is safe and inert — existing reports keep rendering unchanged until each one opts in. Converting N reports' captions at once is user-visible churn with no result attached.
 - **Don't touch figure captions** during this command — caption editing is user-visible churn; let the user opt in separately
 - **Don't auto-rename existing reports or scripts** to fit conventions — only add headers and backlinks
 - **Don't process more than one canvas per turn** in Phase 3 — the user needs to see and accept each

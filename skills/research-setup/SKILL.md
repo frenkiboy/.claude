@@ -159,6 +159,11 @@ Ask the user to fill in (use `$ARGUMENTS` for project_name if provided):
 7. Seed `Scripts/INDEX.md` with the header row only: `| Path | Lang | Purpose | Inputs | Outputs | Upstream | Downstream |` plus separator row — no entries yet
 8. Seed `Prompts/implementation.md` with three empty sections: `## Todo`, `## In progress`, `## Done` — and a one-line preface explaining that `/triage` populates Todo from `PROMPT_LOG.md`
 9. Add a placeholder `Prompts/canvases/.gitkeep` so the empty directory tracks in git
+9a. Copy the shared report assets from `~/.claude/skills/research-setup/assets/`:
+    - `_report_setup.R` → `Scripts/Reports/_report_setup.R` (figure auto-numbering; every report's setup chunk sources it)
+    - `manuscript_theme.R` → `Scripts/Bin/manuscript_theme.R`, then **edit the PROJECT ROLES block** to name the project's one recurring variable and give its baseline level grey. Ask the user what that variable is; if unclear, leave `GROUP <- c()` and note it.
+    - `dataset_schema.yaml` → `Prompts/datasets/_schema.yaml` (only if the project has more than one input dataset)
+    Also write `Prompts/manuscript/figure_style.md` recording the palette decision, and seed an empty `Prompts/archive.md` with its header.
 9b. Seed `Prompts/learnings.md` (project gotchas/insights — header + entry-format comment) and `Prompts/findings/FINDINGS_REGISTRY.md` (empty findings registry table). These back the learn-nudge Stop hook, `/finding`, and `/transfer`. Use the seed text in the "Learnings & Findings" subsection of the CLAUDE.md template below.
 10. Install the project-scoped auto-logging hooks: copy `~/.claude/scripts/project-settings-template.json` to `<home_folder>/.claude/settings.json` (create the `.claude/` directory). This file activates `PROMPT_LOG.md` and `RUN_LOG.md` (logging) plus the `work-marker`/`learn-nudge` Stop hook (the soft end-of-session learning nudge) only when Claude Code runs in this project. If `.claude/settings.json` already exists, MERGE the `hooks` block in rather than overwriting the file.
 11. Ask the user to describe the scientific analysis plan
@@ -222,7 +227,15 @@ Every `.Rmd` lists inputs near top (YAML `inputs:` or `## Inputs` section), each
 
 Every figure caption covers: **input** (source, filter/transform), **method** (functions, params, tests, thresholds), **what it shows**. Caption ends with `(canvas: NNN)`. Keep in sync with code.
 
-**Knit output**: every figure saved as a PDF under `Results/<report>/` named `<yymmdd>_<Type>_<Name>.pdf` (e.g. `260518_Volcano_treated-vs-ctrl.pdf`). R Markdown chunk defaults: `dev = "pdf"`, `fig.path = "Results/<NN_report>/<yymmdd>_"`.
+**All figures are numbered automatically.** Every report's `setup` chunk sources `Scripts/Reports/_report_setup.R`, a knitr plot-hook that prefixes each `fig.cap` with `Figure N.` in order. Write captions **without** a manual number, and put them in `fig.cap` — not in a preceding paragraph. A hand-typed number is wrong the moment a figure is inserted above it, and a caption in a paragraph cannot be numbered, cross-referenced, or carried onto the saved figure.
+
+**Knit output**: every figure saved under `Results/<report>/` named `<yymmdd>_<Type>_<Name>.pdf` (e.g. `260518_Volcano_treated-vs-ctrl.pdf`). R Markdown chunk defaults: `dev = c("png", "pdf")`, `fig.path = "Results/<NN_report>/<yymmdd>_"`. Figures must exist as files, not only as base64 inside an HTML — an embedded-only figure cannot be dropped into a slide, a manuscript, or a second report.
+
+**Every rendered HTML carries a `<yymmdd>_` prefix** reflecting the render date: `rmarkdown::render(..., output_file = sprintf("%s_<report>.html", format(Sys.Date(), "%y%m%d")))`. Replace the prior dated copy so one current HTML per report remains.
+
+**Colour**: `_report_setup.R` also loads `Scripts/Bin/manuscript_theme.R` — a colourblind-safe Paul Tol "muted" palette with `theme_manuscript()` and semantic `scale_*_<role>()` helpers. Pick ONE recurring variable (method / condition / tissue) and give it a **fixed global assignment**, so a level is the same colour in every report; give the baseline/control level grey, because a floor is not a competitor. Every other role draws from the same pool and is declared in that figure's legend. `pal_manuscript(n)` errors past 9 levels rather than interpolating into CVD-unsafe colours. See `Prompts/manuscript/figure_style.md`.
+
+**Index**: maintain `Scripts/Reports/00_Report.Rmd` — a summary with relative links to every report, saying for each what it establishes and whether it still stands.
 
 ## Oracle Testing
 
@@ -241,6 +254,14 @@ Validate against established tools and the positive/negative controls in `resear
       # Upstream:   <script/report producing inputs>
       # Downstream: <script/report consuming outputs>
 
+## Dataset Descriptors
+
+Projects with more than one input dataset keep `Prompts/datasets/<dataset-id>.yaml` — one descriptor per dataset (schema: `~/.claude/skills/research-setup/assets/dataset_schema.yaml`), mirrored next to the data itself as `dataset.yaml` so a descriptor cannot drift away from what it describes.
+
+**The rule that makes them worth having: every field is either verified against the file on disk or carries `verified: false`.** Never fill a dimension from a paper or from memory. A confidently wrong descriptor is worse than a missing one.
+
+Each descriptor records `ground_truth.provenance` — *how* the labels were derived. This is where circularity surfaces: labels derived from the same signal being scored make the benchmark circular, and a dataset of already-filtered/selected features is an output, not an input.
+
 ## Analysis Dependencies
 
 `Prompts/dependencies.json` — DAG of data → reports → figures (`nodes`, `edges` arrays). Each `data`-type node carries a `sha256` of its content (see Data Provenance). Update on add/modify. Static side (headers, INDEX.md, dependencies.json) is source of truth; `RUN_LOG.md` is the dynamic trace. When they disagree, fix the static side.
@@ -250,6 +271,7 @@ Validate against established tools and the positive/negative controls in `resear
 Two capture layers keep knowledge from evaporating between sessions:
 
 - **`Prompts/learnings.md`** — process/tooling gotchas, surprises, dead-ends (e.g. "library X fails silently on sparse input"). The learn-nudge **Stop hook** softly reminds you to add one when a working session ends without an entry. Newest at top. Mark broadly-useful entries `Beyond this project? yes` — `/transfer` promotes those up into global Claude memory for all projects.
+- **`Prompts/archive.md`** — superseded plan entries and claims that turned out not to hold. Moved here rather than deleted, so the record of what was tried survives without leaving a stale statement in `implementation.md` where it reads as current fact. Each entry records what it said, what is actually true, and when it moved. A plan entry marked done that describes a feature which was later reverted is the specific failure this prevents.
 - **`Prompts/findings/`** — *scientific* results tracked as evidence ledgers, one `topic-slug.md` per topic, indexed by `FINDINGS_REGISTRY.md`. Each finding gets an `F-NNN` id, a status (tentative/supported/refuted), and evidence pointers (`canvas: NNN`, `Results/...`). Capture with `/finding`. Findings stay project-local (they're evidence, not transferable conventions); a figure caption may cite `(finding: F-NNN)` to close the loop.
 
 Seed `learnings.md` with a header + entry-format comment; seed `findings/FINDINGS_REGISTRY.md` with the registry header and an empty `| ID | Claim | Status | Topic | Updated |` table.

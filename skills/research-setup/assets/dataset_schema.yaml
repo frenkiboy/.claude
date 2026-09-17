@@ -1,0 +1,49 @@
+# Descriptor schema for a project's datasets.
+#
+# One `<dataset_id>.yaml` per dataset in `Prompts/datasets/`, deployed NEXT TO the data as
+# `dataset.yaml` so a descriptor can never drift away from what it describes.
+#
+# Rule: every field is either VERIFIED against the file on disk or carries `verified: false`.
+# Never fill a dimension from a paper or from memory — a confidently wrong descriptor is worse
+# than a missing one.
+
+id:            # kebab-case, unique, matches the filename
+title:         # one line, human readable
+status:        # organized | missing | derived-only | empty | unused | code-defined
+root:          # absolute directory holding the files
+origin:        # pre-migration location, if it moved
+
+source:
+  citation:    # author, journal, year
+  accession:   # GEO/ArrayExpress/DOI, or "simulated"
+  url:
+
+biology:
+  organism:
+  tissue:
+  modalities:  # [RNA, ATAC, protein, ...]
+  technology:
+
+files:         # one entry per file a pipeline actually reads
+  - path:      # relative to root
+    format:
+    bytes:
+    role:      # counts | metadata | derived | reference
+
+structure:
+  n_samples:
+  n_features:
+  n_batches:
+  batch_key:   # the column name
+  group_key:
+  raw:         # true if unfiltered; false if already filtered/selected
+
+ground_truth:
+  labels:      # what the label column actually is
+  provenance:  # HOW labels were derived — critical for circularity
+  # A label derived from the same signal you are scoring makes the benchmark circular.
+
+used_by:       # scripts/reports that load this; [] if nothing does
+caveats:       # known problems, retirements, confounds
+verified:      # true if the structure fields were read off the file
+verified_on:   # YYYY-MM-DD
