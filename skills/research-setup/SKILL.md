@@ -233,7 +233,9 @@ Every figure caption covers: **input** (source, filter/transform), **method** (f
 
 **Knit output**: every figure saved under `Results/<report>/` named `<yymmdd>_<Type>_<Name>.pdf` (e.g. `260518_Volcano_treated-vs-ctrl.pdf`). R Markdown chunk defaults: `dev = c("png", "pdf")`, `fig.path = "Results/<NN_report>/<yymmdd>_"`. Figures must exist as files, not only as base64 inside an HTML — an embedded-only figure cannot be dropped into a slide, a manuscript, or a second report.
 
-**Every rendered HTML carries a `<yymmdd>_` prefix** reflecting the render date: `rmarkdown::render(..., output_file = sprintf("%s_<report>.html", format(Sys.Date(), "%y%m%d")))`. Replace the prior dated copy so one current HTML per report remains.
+**Every rendered HTML carries a `<yymmdd>_` prefix** reflecting the render date: `rmarkdown::render(..., output_file = sprintf("%s_<report>.html", format(Sys.Date(), "%y%m%d")))`.
+
+**Never delete a rendered report.** Each render writes a **new** dated file; previous dates stay where they are. The accumulated `<yymmdd>_<report>.html` files are the visual history of the analysis — what a figure looked like before a parameter changed is often the only record that it changed at all, and a rendered HTML is not reproducible once its inputs move. Re-render, do not replace. If a directory needs a current copy, add one; do not remove the old. This applies to anything under `Results/` too: dated figures accumulate, they are not overwritten.
 
 **Colour**: `_report_setup.R` also loads `Scripts/Bin/manuscript_theme.R` — a colourblind-safe Paul Tol "muted" palette with `theme_manuscript()` and semantic `scale_*_<role>()` helpers. Pick ONE recurring variable (method / condition / tissue) and give it a **fixed global assignment**, so a level is the same colour in every report; give the baseline/control level grey, because a floor is not a competitor. Every other role draws from the same pool and is declared in that figure's legend. `pal_manuscript(n)` errors past 9 levels rather than interpolating into CVD-unsafe colours. See `Prompts/manuscript/figure_style.md`.
 
