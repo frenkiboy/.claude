@@ -2,6 +2,8 @@
 description: Grill the user about gaps in the implementation plan and canvases - methods, parameters, controls, dependencies, edge cases. One question at a time, each with a recommended answer. Resolves TBDs and ambiguities before code is written. Pass a file path to scope the grilling to that artifact.
 argument-hint: [path-to-file | section-keyword]
 allowed-tools: [Read, Write, Edit, Glob, Grep, Bash(ls:*), Bash(date:*), Bash(grep:*), Bash(realpath:*), Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git add:*), Bash(git commit:*), Agent]
+# NOTE: read-only inspection + plan/canvas edits only. This command never installs,
+# downloads, runs an analysis, or writes to Results/. See "Hard rule: never execute".
 ---
 
 # Evaluate the Plan — Socratic Interrogation
@@ -16,6 +18,42 @@ accept, override, or skip.
 This is the gate before `/plan-exec` runs anything. If a canvas has
 `TBD` in Operations, `/plan-exec` halts; the cleanest way to clear them
 is to run this command first.
+
+---
+
+## Hard rule: never execute — always write it down
+
+**This command plans. It never runs anything.** `/grill-me` is the gate *before*
+`/plan-exec`; the moment it executes, the gate is gone.
+
+This holds **even when the user asks you, mid-interrogation, to do the thing being
+discussed.** A question like "can you also run X?" is a feasibility question —
+answer it. An instruction like "install X and run it" is a *decision about the
+plan*, and the correct response is to record that decision, not to carry it out:
+
+- Write the decision into the canvas (Approach / Operations / Safeguards), and/or
+- Add a `## Todo` item in `implementation.md` with a `[source: evaluation <date>]`
+  marker, and
+- Say plainly: *"Recorded. That's execution work — it runs under `/plan-exec`,
+  or now if you'd rather stop the grill and switch."*
+
+Then let the user choose. Never make that switch silently.
+
+**Permitted** — read-only inspection in service of a question: `Read`, `Glob`,
+`Grep`, `ls`, `git status/diff/log`, launching a read-only Explore agent, and
+editing plan/canvas files (that *is* the deliverable of this command).
+
+**Forbidden** — installing software, downloading anything, running an analysis,
+executing a pipeline or script, writing to `Results/`, or creating any project
+artifact other than plan and canvas files. If a question genuinely cannot be
+resolved without running something, that is a **"needs data"** answer: record it
+as such and move on (Phase 4, Hard stop).
+
+**Why**: anything produced during a grill has no canvas, so nothing backlinks it.
+Outputs written to `Results/` without a `(canvas: NNN)` provenance chain look like
+pipeline products but are not, and the project cannot later tell which prompt,
+canvas or commit produced them. Recording the decision costs one line and keeps
+the chain intact; executing costs the chain.
 
 ---
 
@@ -216,6 +254,11 @@ Ask the user: *"Commit the resolved canvases + plan edits as a single
 
 ## Anti-patterns to avoid
 
+- **Don't execute anything, ever — not even when asked mid-grill.** Record the
+  decision in the canvas or as a Todo and tell the user it runs under
+  `/plan-exec`. See "Hard rule: never execute" above. Installing a tool, running
+  an analysis, or writing to `Results/` during a grill creates artifacts with no
+  canvas and no provenance backlink.
 - **Don't batch questions** — the whole point is sequential resolution.
 - **Don't ask questions the code already answers** — surface those as
   "code says X, plan says TBD" instead.
