@@ -223,6 +223,87 @@ When creating `CLAUDE.md` for a new project (both Print Mode and Setup Mode), us
 
 Every `.Rmd` lists inputs near top (YAML `inputs:` or `## Inputs` section), each as: **path, type** (raw / cacheR / upstream figure / external), **source** (producing report or publication), **used for**. Update with code.
 
+## Rendered Report Structure
+
+The rules above govern *figures*. These govern the *document*, and a report that
+breaks them renders without an error — it just comes out unusable.
+
+**Every `.Rmd` starts with YAML front matter.** Without it `rmarkdown::render()`
+falls through to bare `html_document` defaults: no table of contents, no section
+numbers, no code folding. Baseline block:
+
+    ---
+    title: "<what the report establishes, not the filename>"
+    author: "<name>"
+    date: "`r format(Sys.Date(), '%d %B %Y')`"
+    output:
+      html_document:
+        toc: true
+        toc_float: {collapsed: false, smooth_scroll: true}
+        toc_depth: 3
+        number_sections: true
+        code_folding: hide
+        df_print: paged
+        self_contained: true
+        theme: flatly
+        highlight: tango
+    ---
+
+`code_folding: hide` is not cosmetic: a reader opens a report to read the
+argument, and a wall of un-collapsed code buries it. The code stays one click
+away, per chunk or all at once.
+
+**Every figure must be printed into the report, not only saved.** `ggsave()`
+writes a file; it does not put a plot in the HTML. A report whose chunks only
+`ggsave()` renders to a document with **zero `<img>` tags** and no error
+anywhere. So: save the file *and* print the object.
+
+- top level in a chunk: `ggsave(...); gg`
+- inside a `for` loop: `print(gg)` — auto-printing does not apply in a loop
+- `ComplexHeatmap` / base graphics wrapped in `pdf()` … `dev.off()`: the device
+  swallows the plot, so `draw()` / plot a second time after `dev.off()`
+- a test computed and never printed is the same defect in table form — print
+  the result or `fwrite` it, do not compute and discard
+
+**The provenance header goes in an HTML comment.** The `# Canvas: / # Purpose: /
+# Inputs:` block is still required, but written as `#` lines above the YAML it
+becomes eight `<h1>`s at the top of the TOC. Wrap it in `<!-- ... -->`.
+
+**Headings are the table of contents.** In an `.Rmd`, `# ---------------- #` is
+not a comment, it is an `<h1>` — a ruler like that renders as a heading and
+fills the TOC with dashes. Use real headings with a real hierarchy: `#` for a
+part of the analysis, `##` for an analysis, `###` for a variant of it. Every
+plotting chunk sits under a heading that names what is being asked.
+
+**One figure per chunk**, with its own `fig.cap`, whenever the figures differ.
+Several plots in one chunk share one caption, and a caption that has to cover
+two different figures describes neither. A single chunk emitting many panels is
+right only for a genuine series — the same plot over each contrast — and the
+caption then says so.
+
+**Label every chunk.** The label is the figure's filename under `fig.path`;
+unlabelled chunks produce `unnamed-chunk-17-1.png`, which nothing can be traced
+back from.
+
+**`fig.path` is resolved against the document's directory, not
+`knit_root_dir`.** Knitting from the project root with
+`fig.path = "Results/<report>/<yymmdd>_"` silently creates
+`Scripts/Reports/Results/<report>/` instead. Write it relative to the `.Rmd`:
+`fig.path = "../../Results/<report>/<yymmdd>_"`.
+
+**Check the render before calling it done.** The failures above are all silent,
+so look at the output, not at the exit status:
+
+    H=Scripts/Reports/<yymmdd>_<report>.html
+    grep -c '<img'                  $H   # figures present at all
+    grep -c 'class="caption"'       $H   # every figure captioned
+    grep -o 'Figure [0-9]*\.'       $H | sort -u | wc -l   # numbering runs 1..N
+    grep -c 'header-section-number' $H   # sections numbered
+    grep -c 'rmd-hide-all-code'     $H   # code folding active
+    grep -c 'id="TOC"'              $H   # TOC present (toc_float fills it in the browser)
+
+A figure count of 0 is the signature of the ggsave-without-print defect.
+
 ## Figure Documentation
 
 Every figure caption covers: **input** (source, filter/transform), **method** (functions, params, tests, thresholds), **what it shows**. Caption ends with `(canvas: NNN)`. Keep in sync with code.
@@ -231,7 +312,7 @@ Every figure caption covers: **input** (source, filter/transform), **method** (f
 
 **No straight double quotes inside `fig.cap`.** They break out of the generated `<img alt="...">` attribute, pandoc degrades the whole tag to literal text, and the figure vanishes while its caption still renders — so the report looks fine unless you check that an `<img>` precedes every caption. Use single quotes or backticks inside captions.
 
-**Knit output**: every figure saved under `Results/<report>/` named `<yymmdd>_<Type>_<Name>.pdf` (e.g. `260518_Volcano_treated-vs-ctrl.pdf`). R Markdown chunk defaults: `dev = c("png", "pdf")`, `fig.path = "Results/<NN_report>/<yymmdd>_"`. Figures must exist as files, not only as base64 inside an HTML — an embedded-only figure cannot be dropped into a slide, a manuscript, or a second report.
+**Knit output**: every figure saved under `Results/<report>/` named `<yymmdd>_<Type>_<Name>.pdf` (e.g. `260518_Volcano_treated-vs-ctrl.pdf`). R Markdown chunk defaults: `dev = c("png", "pdf")`, `fig.path = "../../Results/<NN_report>/<yymmdd>_"` (document-relative — see **Rendered Report Structure**). Figures must exist as files, not only as base64 inside an HTML — an embedded-only figure cannot be dropped into a slide, a manuscript, or a second report.
 
 **Every rendered HTML carries a `<yymmdd>_` prefix** reflecting the render date: `rmarkdown::render(..., output_file = sprintf("%s_<report>.html", format(Sys.Date(), "%y%m%d")))`.
 
@@ -360,7 +441,7 @@ flowchart TD
 | `UserPromptSubmit`   | user's prompt text                                                             | `Prompts/Logs/PROMPT_LOG.md` (append) |
 | `PostToolUse` (Bash) | script invocations matching `Rscript`, `python`, `snakemake`, `bash *.sh`, `./*.{R,py,sh,Rmd}` | `Prompts/Logs/RUN_LOG.md` (append)    |
 | `PostToolUse` (Edit/Write/Bash) | substantive-work signal | `Prompts/Logs/.work-<sid>` marker (transient) |
-| `Stop`               | `.work-<sid>` marker, `Prompts/learnings.md` mtime | one-time soft nudge to record a learning if work happened and none was logged |
+| `Stop`               | `.work-<sid>` marker, `Prompts/learnings.md` mtime | one-time soft nudge to record a learning if work happened and none was logged — throttled to at most once per project per 24h (`LEARN_NUDGE_COOLDOWN_HOURS`, `0` disables) |
 
 ### Slash commands
 
