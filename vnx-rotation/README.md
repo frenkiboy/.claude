@@ -2,7 +2,7 @@
 
 Adapted from https://vincentvandeth.nl/blog/context-rot-claude-code-automatic-rotation
 
-When context-used crosses a threshold (default **65%**), the agent is forced to
+When context-used crosses a threshold (default **55%**), the agent is forced to
 write a handover document, the session is automatically `/clear`-ed, and the
 fresh session resumes with the handover injected — so work continues with a full
 context budget but no lost state.
@@ -25,10 +25,10 @@ to a state file that the hooks poll. Two other changes:
 |------|------|
 | `~/.claude/statusline.sh` (sensor block) | writes `state/<sid>.env` = PCT, PANE, TS |
 | `bin/vnx_context_monitor.sh` | **PreToolUse** — at ≥threshold, denies non-write tools and demands a handover |
-| `bin/vnx_handover_detector.sh` | **PostToolUse** — marks rotation pending when a file with `ROTATION-HANDOVER` is written |
-| `bin/vnx_stop.sh` | **Stop** — when idle + pending, locks and launches the rotator |
+| `bin/vnx_handover_detector.sh` | **PostToolUse** — marks rotation pending only for a genuine handover (file **inside `handovers/`** whose first line is `# ROTATION-HANDOVER`) |
+| `bin/vnx_stop.sh` | **Stop** — when idle + pending, re-checks the handover is valid **and context is still ≥ threshold**, then locks and launches the rotator |
 | `bin/vnx_rotate.sh` | detached — `tmux send-keys /clear`, waits for SessionStart, pastes continuation |
-| `bin/vnx_session_start.sh` | **SessionStart** — injects newest fresh handover as `additionalContext` |
+| `bin/vnx_session_start.sh` | **SessionStart** — injects newest fresh handover as `additionalContext` and appends a provenance line to `handovers/ledger.jsonl` |
 | `bin/vnx_common.sh` | shared paths / enable check / logging |
 
 Hooks are registered in `~/.claude/settings.json`.
@@ -41,8 +41,41 @@ Hooks are registered in `~/.claude/settings.json`.
 
 ## Tuning (env vars, set before launching `claude`)
 
-- `VNX_ROTATION_THRESHOLD` — percent to rotate at (default `65`)
+- `VNX_ROTATION_THRESHOLD` — percent to rotate at (default `55`)
 - `VNX_ROTATION_TTL` — seconds for lock/handover freshness (default `300`)
+
+## Safety gates (why a false rotation can't `/clear` you)
+
+A pending flag only *requests* a rotation; the Stop hook confirms it before the
+irreversible `/clear`:
+
+1. The handover must be a real structured doc (first line `# ROTATION-HANDOVER`,
+   has a Next Steps section).
+2. Context must **still** be ≥ threshold right now — a stale or mis-set flag on a
+   low-context session is refused and cleared.
+
+The detector is likewise scoped: it only reacts to files **inside `handovers/`**
+whose first line is the marker, so docs/memory that merely mention the marker in
+prose can't trigger a rotation.
+
+## Provenance
+
+Each resume appends one JSON line to `handovers/ledger.jsonl`:
+
+```json
+{"ts":"…","from_sid":"…","to_sid":"…","handover":"handovers/<sid>.md",
+ "sha256":"…","context_pct":66,"threshold":55,"created_at":"…","status":"resumed"}
+```
+
+- `from_sid → to_sid` reconstructs the full rotation chain across sessions.
+- `sha256` is the hash of the exact injected content — re-hash the file later to
+  detect any edit/clobber.
+- A handover file on disk with **no** matching `resumed` ledger line is an orphan
+  (rotation launched but the session never came back).
+
+Handover docs are keyed by session id (`handovers/<sid>.md`) and never deleted,
+so they accumulate; `handovers/`, `state/`, `locks/`, and `ENABLED` are
+git-ignored (per-machine runtime, not version-controlled).
 
 ## Operational notes / limitations
 

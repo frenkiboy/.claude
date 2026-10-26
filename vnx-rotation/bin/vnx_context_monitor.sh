@@ -44,6 +44,7 @@ if [ -f "$ptr" ]; then
 fi
 
 hpath="$VNX_HANDOVERS/${sid}.md"
+created_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 reason="CONTEXT ROTATION TRIGGERED at ${pcti}% (threshold ${VNX_THRESHOLD}%). Before any more tool calls, STOP and write a rotation handover with the Write tool to exactly: ${hpath}
 
 The file MUST begin with the literal marker line and follow this structure:
@@ -51,6 +52,8 @@ The file MUST begin with the literal marker line and follow this structure:
 # ROTATION-HANDOVER
 **Session-ID**: ${sid}
 **Context-Used**: ${pcti}%
+**Created-At**: ${created_at}
+**Threshold**: ${VNX_THRESHOLD}%
 **Active-Skill**: <the /skill currently active, or none>
 
 ## Completed Work
