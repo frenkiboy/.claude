@@ -81,6 +81,50 @@
           }
         ]
       }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/vfranke/.claude/vnx-rotation/bin/vnx_context_monitor.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/vfranke/.claude/vnx-rotation/bin/vnx_handover_detector.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/vfranke/.claude/vnx-rotation/bin/vnx_stop.sh"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/vfranke/.claude/vnx-rotation/bin/vnx_session_start.sh"
+          }
+        ]
+      }
     ]
   },
   "statusLine": {
@@ -90,7 +134,8 @@
   "enabledPlugins": {
     "code-review@claude-plugins-official": true
   },
+  "tui": "fullscreen",
   "skipDangerousModePermissionPrompt": true,
   "theme": "dark-ansi",
-  "tui": "fullscreen"
+  "agentPushNotifEnabled": true
 }

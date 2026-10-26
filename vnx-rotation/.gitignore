@@ -1,0 +1,8 @@
+# Runtime artifacts — never commit. These are per-machine / per-session.
+state/
+handovers/
+locks/
+
+# Local enable toggle: presence of this file arms rotation on THIS machine.
+# Committing it would silently force-enable rotation on every clone.
+ENABLED

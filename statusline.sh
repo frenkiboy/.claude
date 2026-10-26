@@ -26,15 +26,16 @@ fields = [
     g("rate_limits", "five_hour", "used_percentage"),
     g("rate_limits", "seven_day", "used_percentage"),
     g("vim", "mode"),
+    g("session_id"),
 ]
 print("\t".join("_" if f == "" else str(f) for f in fields))
 PY
 )
 
-IFS=$'\t' read -r model cwd used_pct total_input ctx_size five_h seven_d vim_mode <<<"$parsed"
+IFS=$'\t' read -r model cwd used_pct total_input ctx_size five_h seven_d vim_mode session_id <<<"$parsed"
 
 # Convert "_" sentinel back to empty
-for v in model cwd used_pct total_input ctx_size five_h seven_d vim_mode; do
+for v in model cwd used_pct total_input ctx_size five_h seven_d vim_mode session_id; do
     [ "${!v}" = "_" ] && printf -v "$v" '%s' ''
 done
 
@@ -84,3 +85,23 @@ if [ -n "$vim_mode" ]; then
 fi
 
 printf '%b\n' "$out"
+
+# --- VNX context-rotation sensor -------------------------------------------
+# Hooks can't read context usage, but the statusline can. Mirror used_pct (and
+# the live tmux pane) to a state file the rotation hooks poll. Fully guarded so
+# it can never break the status line.
+{
+    vnx_dir="${VNX_DIR:-$HOME/.claude/vnx-rotation}"
+    if [ -d "$vnx_dir" ] \
+       && { [ -f "$vnx_dir/ENABLED" ] || [ "${VNX_CONTEXT_ROTATION_ENABLED:-}" = "1" ]; } \
+       && [ "${VNX_CONTEXT_ROTATION_ENABLED:-}" != "0" ] \
+       && [ -n "$used_pct" ]; then
+        vnx_sid="${session_id:-default}"; [ -n "$vnx_sid" ] || vnx_sid=default
+        vnx_state="$vnx_dir/state"
+        mkdir -p "$vnx_state" 2>/dev/null || true
+        vnx_tmp="$vnx_state/.${vnx_sid}.$$"
+        printf 'PCT=%s\nPANE=%s\nTS=%s\n' "$used_pct" "${TMUX_PANE:-}" "$(date +%s)" >"$vnx_tmp" 2>/dev/null \
+            && mv -f "$vnx_tmp" "$vnx_state/${vnx_sid}.env" 2>/dev/null \
+            && cp -f "$vnx_state/${vnx_sid}.env" "$vnx_state/default.env" 2>/dev/null
+    fi
+} 2>/dev/null || true
