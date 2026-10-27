@@ -46,4 +46,10 @@ else
     echo "statusline.sh: no sensor block found"
 fi
 
+# 3) Remove the vnx CLI symlink if it points back into this install.
+VNXLINK="$HOME/bin/vnx"
+if [ -L "$VNXLINK" ] && readlink "$VNXLINK" 2>/dev/null | grep -q 'vnx-rotation/bin/vnx'; then
+    rm -f "$VNXLINK" && echo "~/bin/vnx symlink removed"
+fi
+
 echo "Done. Restart Claude Code to reload settings."

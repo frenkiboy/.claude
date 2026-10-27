@@ -7,11 +7,18 @@ VNX_LOCKS="$VNX_DIR/locks"
 VNX_LOG="$VNX_STATE/rotation.log"
 VNX_THRESHOLD="${VNX_ROTATION_THRESHOLD:-55}"   # % context-used at which to rotate
 VNX_TTL="${VNX_ROTATION_TTL:-300}"              # seconds: lock/handover freshness
+VNX_KEEP_HANDOVERS="${VNX_KEEP_HANDOVERS:-50}"  # prune: handover docs to retain
+VNX_LOG_MAXLINES="${VNX_LOG_MAXLINES:-2000}"    # prune: rotation.log line cap
 
 # Enabled unless env explicitly disables. On if ENABLED file present OR env==1.
 vnx_enabled() {
     [ "${VNX_CONTEXT_ROTATION_ENABLED:-}" = "0" ] && return 1
     [ -f "$VNX_DIR/ENABLED" ] || [ "${VNX_CONTEXT_ROTATION_ENABLED:-}" = "1" ]
+}
+
+# A session can be pinned to suppress rotation during delicate work.
+vnx_pinned() {  # vnx_pinned <sid>
+    [ -n "${1:-}" ] && [ -f "$VNX_STATE/${1}.pin" ]
 }
 
 vnx_log() {

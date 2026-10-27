@@ -18,6 +18,12 @@ PY
 )"
 [ -n "$sid" ] || sid=default
 
+# Pinned session: suppress rotation (leave any pending flag for later — the
+# context gate below will re-validate it once the pin is removed).
+if vnx_pinned "$sid"; then
+    vnx_log stop "session pinned sid=$sid — rotation suppressed"; exit 0
+fi
+
 pend="$VNX_STATE/${sid}.pending"
 [ -f "$pend" ] || exit 0
 hfile="$(cat "$pend" 2>/dev/null)"

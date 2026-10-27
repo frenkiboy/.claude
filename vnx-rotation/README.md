@@ -29,9 +29,31 @@ to a state file that the hooks poll. Two other changes:
 | `bin/vnx_stop.sh` | **Stop** — when idle + pending, re-checks the handover is valid **and context is still ≥ threshold**, then locks and launches the rotator |
 | `bin/vnx_rotate.sh` | detached — `tmux send-keys /clear`, waits for SessionStart, pastes continuation |
 | `bin/vnx_session_start.sh` | **SessionStart** — injects newest fresh handover as `additionalContext` and appends a provenance line to `handovers/ledger.jsonl` |
-| `bin/vnx_common.sh` | shared paths / enable check / logging |
+| `bin/vnx_common.sh` | shared paths / enable check / pin check / logging |
+| `bin/vnx` | CLI: `status`, `selftest`, `prune`, `pin`/`unpin`, `log` (symlinked to `~/bin/vnx`) |
+| `bin/vnx_selftest.sh` | dry-runs the full pipeline in isolation (no real pane); PASS/FAIL per stage |
+| `bin/vnx_prune.sh` | retention: keep newest N handovers, cap the log |
 
 Hooks are registered in `~/.claude/settings.json`.
+
+## Inspecting & controlling (`vnx`)
+
+`vnx` is on your `PATH` (symlink in `~/bin`). From a terminal — or `! vnx …`
+inside a Claude prompt:
+
+```
+vnx status      # armed?, current context %, rotation chain, orphans
+vnx selftest    # exercise deny -> detect -> gates -> inject -> ledger; PASS/FAIL
+vnx prune       # enforce retention now
+vnx pin         # suppress rotation for THIS session (matched by $TMUX_PANE)
+vnx unpin       # lift the pin
+vnx log [n]     # tail the rotation log
+```
+
+Run `vnx selftest` after editing any hook — it confirms the whole pipeline is
+healthy without touching your real pane. A **pin** is the safety valve for
+delicate work: `state/<sid>.pin` makes both the monitor (no forced handover) and
+the Stop hook (no `/clear`) skip that one session until you `vnx unpin`.
 
 ## Enable / disable
 
@@ -43,6 +65,8 @@ Hooks are registered in `~/.claude/settings.json`.
 
 - `VNX_ROTATION_THRESHOLD` — percent to rotate at (default `55`)
 - `VNX_ROTATION_TTL` — seconds for lock/handover freshness (default `300`)
+- `VNX_KEEP_HANDOVERS` — handover docs to retain when pruning (default `50`)
+- `VNX_LOG_MAXLINES` — `rotation.log` line cap when pruning (default `2000`)
 
 ## Safety gates (why a false rotation can't `/clear` you)
 

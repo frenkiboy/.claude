@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+# vnx — inspect and control the context-rotation system.
+#   vnx status            health, current context, rotation chain, orphans
+#   vnx selftest          dry-run the whole pipeline (PASS/FAIL per stage)
+#   vnx prune             enforce handover/log retention now
+#   vnx pin   [sid]       suppress rotation for a session (default: most recent)
+#   vnx unpin [sid]       remove a pin
+#   vnx log   [n]         tail the rotation log (default 20 lines)
+set -uo pipefail
+# Resolve through a symlink (e.g. ~/bin/vnx) to the real install dir.
+_self="${BASH_SOURCE[0]}"
+_self="$(readlink -f "$_self" 2>/dev/null || realpath "$_self" 2>/dev/null || echo "$_self")"
+DIR="$(cd "$(dirname "$_self")" && pwd)"
+. "$DIR/vnx_common.sh"
+
+# Resolve a session id for pin/unpin. Priority:
+#   1. explicit arg
+#   2. the session whose sensor file records THIS tmux pane ($TMUX_PANE) —
+#      deterministic even with several live sessions
+#   3. fallback: most-recently-updated sensor file (racy, last resort)
+# Prints the sid on stdout; a trailing note (if any) goes to stderr.
+resolve_sid() {
+    if [ -n "${1:-}" ]; then printf '%s' "$1"; return; fi
+    if [ -n "${TMUX_PANE:-}" ]; then
+        local f sid pane
+        for f in "$VNX_STATE"/*.env; do
+            [ -f "$f" ] || continue
+            [ "$(basename "$f")" = "default.env" ] && continue
+            pane=""; . "$f" 2>/dev/null; pane="${PANE:-}"
+            if [ "$pane" = "$TMUX_PANE" ]; then
+                printf '%s' "$(basename "$f" .env)"; return
+            fi
+        done
+    fi
+    local newest=""
+    newest="$(find "$VNX_STATE" -maxdepth 1 -type f -name '*.env' ! -name 'default.env' \
+              -printf '%T@\t%f\n' 2>/dev/null | sort -rn | head -1 | cut -f2)"
+    [ -z "${TMUX_PANE:-}" ] || echo "note: no sensor matched pane $TMUX_PANE; using most-recent session" >&2
+    printf '%s' "${newest%.env}"
+}
+
+cmd="${1:-status}"; shift 2>/dev/null || true
+
+case "$cmd" in
+status)
+    VNX_STATE="$VNX_STATE" VNX_HANDOVERS="$VNX_HANDOVERS" VNX_LOG="$VNX_LOG" \
+    VNX_THRESHOLD="$VNX_THRESHOLD" VNX_DIR="$VNX_DIR" \
+    VNX_ARMED="$(vnx_enabled && echo yes || echo no)" python3 - <<'PY'
+import os, glob, json
+
+st   = os.environ["VNX_STATE"]
+hnd  = os.environ["VNX_HANDOVERS"]
+thr  = os.environ["VNX_THRESHOLD"]
+
+print("vnx-rotation status")
+print(f"  armed:      {os.environ['VNX_ARMED']}   threshold: {thr}%")
+
+# Current context from the newest per-session sensor file.
+envs = [f for f in glob.glob(os.path.join(st, "*.env"))
+        if os.path.basename(f) != "default.env"]
+envs.sort(key=lambda f: os.path.getmtime(f), reverse=True)
+if envs:
+    sid = os.path.basename(envs[0])[:-4]
+    kv = {}
+    for line in open(envs[0]):
+        if "=" in line:
+            k, v = line.strip().split("=", 1); kv[k] = v
+    pin = " [PINNED]" if os.path.exists(os.path.join(st, sid + ".pin")) else ""
+    print(f"  current:    {kv.get('PCT','?')}% ctx  session {sid}  pane {kv.get('PANE','?')}{pin}")
+else:
+    print("  current:    (no active sensor file yet)")
+
+pins = [os.path.basename(f)[:-4] for f in glob.glob(os.path.join(st, "*.pin"))]
+if pins:
+    print(f"  pinned:     {', '.join(pins)}")
+
+# Rotation chain from the ledger.
+ledger = os.path.join(hnd, "ledger.jsonl")
+recs = []
+if os.path.exists(ledger):
+    for line in open(ledger):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            recs.append(json.loads(line))
+        except Exception:
+            pass
+print(f"  rotations:  {len(recs)} recorded")
+for r in recs[-8:]:
+    print(f"    {r.get('from_sid','?')} ({r.get('context_pct','?')}%) "
+          f"-> {r.get('to_sid','?')}  {r.get('ts','?')}")
+if len(recs) > 8:
+    print(f"    (+{len(recs)-8} older; see {ledger})")
+
+# Orphans: handover docs on disk with no 'resumed' ledger entry.
+resumed = {r.get("from_sid") for r in recs if r.get("status") == "resumed"}
+docs = [f for f in glob.glob(os.path.join(hnd, "*.md"))]
+orphans = [f for f in docs if os.path.basename(f)[:-3] not in resumed]
+if orphans:
+    print(f"  orphans:    {len(orphans)} handover(s) never resumed:")
+    for f in orphans[:8]:
+        print(f"    {os.path.basename(f)}")
+else:
+    print("  orphans:    none")
+PY
+    echo "  log:        $VNX_LOG"
+    ;;
+selftest) exec bash "$DIR/vnx_selftest.sh" ;;
+prune)    exec bash "$DIR/vnx_prune.sh" ;;
+pin)
+    sid="$(resolve_sid "${1:-}")"
+    [ -n "$sid" ] || { echo "vnx pin: no session to pin (pass a sid)"; exit 1; }
+    mkdir -p "$VNX_STATE" 2>/dev/null || true
+    touch "$VNX_STATE/${sid}.pin"
+    vnx_log pin "pinned sid=$sid"
+    echo "pinned $sid — rotation suppressed for this session until 'vnx unpin $sid'"
+    ;;
+unpin)
+    sid="$(resolve_sid "${1:-}")"
+    [ -n "$sid" ] || { echo "vnx unpin: no session resolved (pass a sid)"; exit 1; }
+    rm -f "$VNX_STATE/${sid}.pin"
+    vnx_log pin "unpinned sid=$sid"
+    echo "unpinned $sid"
+    ;;
+log)
+    n="${1:-20}"
+    [ -f "$VNX_LOG" ] && tail -n "$n" "$VNX_LOG" || echo "(no log yet)"
+    ;;
+-h|--help|help)
+    awk 'NR>1 && /^#/{sub(/^# ?/,"");print;next} NR>1{exit}' "$0"
+    ;;
+*)
+    echo "vnx: unknown command '$cmd' (try: vnx help)"; exit 1 ;;
+esac

@@ -65,4 +65,7 @@ tmux delete-buffer -b vnx_rot 2>/dev/null || true
 rm -f "$buf"
 
 vnx_log rotate "continuation submitted sid=$sid — rotation complete"
+
+# Opportunistic cleanup so handovers/log don't grow unbounded.
+bash "$DIR/vnx_prune.sh" >/dev/null 2>&1 || true
 exit 0

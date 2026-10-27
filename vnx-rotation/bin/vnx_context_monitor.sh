@@ -18,6 +18,9 @@ PY
 )
 [ -n "$sid" ] || sid=default
 
+# Pinned session: never interrupt it to force a handover.
+vnx_pinned "$sid" && exit 0
+
 # Current context-used % written by the statusline sensor.
 pct=""
 for key in "$sid" default; do
