@@ -2,7 +2,7 @@
 
 Adapted from https://vincentvandeth.nl/blog/context-rot-claude-code-automatic-rotation
 
-When context-used crosses a threshold (default **55%**), the agent is forced to
+When context-used crosses a threshold (default **45%**), the agent is forced to
 write a handover document, the session is automatically `/clear`-ed, and the
 fresh session resumes with the handover injected — so work continues with a full
 context budget but no lost state.
@@ -63,7 +63,7 @@ the Stop hook (no `/clear`) skip that one session until you `vnx unpin`.
 
 ## Tuning (env vars, set before launching `claude`)
 
-- `VNX_ROTATION_THRESHOLD` — percent to rotate at (default `55`)
+- `VNX_ROTATION_THRESHOLD` — percent to rotate at (default `45`)
 - `VNX_ROTATION_TTL` — seconds for lock/handover freshness (default `300`)
 - `VNX_KEEP_HANDOVERS` — handover docs to retain when pruning (default `50`)
 - `VNX_LOG_MAXLINES` — `rotation.log` line cap when pruning (default `2000`)
