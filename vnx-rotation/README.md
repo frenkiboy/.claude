@@ -82,6 +82,23 @@ The detector is likewise scoped: it only reacts to files **inside `handovers/`**
 whose first line is the marker, so docs/memory that merely mention the marker in
 prose can't trigger a rotation.
 
+## Multiple sessions at once
+
+Nothing is keyed by project folder — everything is keyed by **session id**, so
+two Claude sessions in the same folder never collide: each has its own
+`handovers/<sid>.md`, `<sid>.pending`, and `<sid>.lock`, and its `/clear` goes
+to its own captured pane. Session ids are unique per rotation (a `/clear` yields
+a fresh id), so handover docs are never clobbered across rotations.
+
+Which handover a resumed session injects is decided **by tmux pane**, not by
+"newest": the rotator records `state/pane-<pane>.handover → <file>` before the
+`/clear`, and `SessionStart` reads its own `$TMUX_PANE` and injects exactly that
+claim. So even if several sessions rotate within the same TTL window, each pane
+resumes with its *own* handover — no swapping. Without a pane match (non-tmux, or
+a failed clear) it falls back to newest-wins among handovers **not** claimed by
+any pane. Stale claims (a rotation whose `/clear` never resumed) expire after the
+TTL and are swept by `vnx prune`.
+
 ## Provenance
 
 Each resume appends one JSON line to `handovers/ledger.jsonl`:

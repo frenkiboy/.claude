@@ -12,21 +12,48 @@ vnx_enabled || exit 0
 # Signal the rotator that a clear happened.
 touch "$VNX_STATE/sessionstart.last" 2>/dev/null || true
 
-# Find the newest handover pointer whose target is still fresh.
-best=""; best_ptr=""; bestt=0
+# Choose the handover to inject. Primary: the claim for THIS tmux pane — the
+# deterministic match when several sessions rotate at once. Fallback (no pane,
+# or no claim for it): newest-wins among handovers NOT claimed by any pane, so
+# fallback can never steal a handover meant for another pane.
+best=""; best_ptr=""; pane_claim=""
 now="$(vnx_now)"
-for ptr in "$VNX_STATE"/*.handover; do
-    [ -f "$ptr" ] || continue
-    hf="$(cat "$ptr" 2>/dev/null)"
-    [ -n "$hf" ] && [ -f "$hf" ] || continue
-    m="$(vnx_mtime "$hf")"
-    [ $(( now - m )) -lt "$VNX_TTL" ] || continue
-    if [ "$m" -gt "$bestt" ]; then bestt="$m"; best="$hf"; best_ptr="$ptr"; fi
-done
+fresh() { [ -f "$1" ] && [ $(( now - $(vnx_mtime "$1") )) -lt "$VNX_TTL" ]; }
+
+if [ -n "${TMUX_PANE:-}" ]; then
+    pkey="$(printf '%s' "$TMUX_PANE" | tr -c 'A-Za-z0-9' '_')"
+    pc="$VNX_STATE/pane-${pkey}.handover"
+    if fresh "$pc"; then
+        hf="$(cat "$pc" 2>/dev/null)"
+        if [ -n "$hf" ] && fresh "$hf"; then best="$hf"; pane_claim="$pc"; fi
+    fi
+fi
+
+if [ -z "$best" ]; then
+    # Handover files currently claimed by some (fresh) pane — off-limits here.
+    claimed=""
+    for pc in "$VNX_STATE"/pane-*.handover; do
+        fresh "$pc" || continue
+        cf="$(cat "$pc" 2>/dev/null)"; [ -n "$cf" ] && claimed="${claimed}|${cf}|"
+    done
+    bestt=0
+    for ptr in "$VNX_STATE"/*.handover; do
+        [ -f "$ptr" ] || continue
+        case "$ptr" in "$VNX_STATE"/pane-*) continue ;; esac   # skip pane claims
+        hf="$(cat "$ptr" 2>/dev/null)"
+        [ -n "$hf" ] && fresh "$hf" || continue
+        case "$claimed" in *"|${hf}|"*) continue ;; esac       # skip pane-claimed
+        m="$(vnx_mtime "$hf")"
+        if [ "$m" -gt "$bestt" ]; then bestt="$m"; best="$hf"; best_ptr="$ptr"; fi
+    done
+fi
 [ -n "$best" ] || exit 0
 
-# Consume the pointer so we don't re-inject on later restarts.
-rm -f "$best_ptr" 2>/dev/null || true
+# Consume every pointer that could re-inject this handover: the pane claim, the
+# per-sid pointer (filename is <sid>.md), and the fallback pointer if used.
+[ -n "$pane_claim" ] && rm -f "$pane_claim" 2>/dev/null || true
+rm -f "$VNX_STATE/$(basename "$best" .md).handover" 2>/dev/null || true
+[ -n "$best_ptr" ] && rm -f "$best_ptr" 2>/dev/null || true
 vnx_log session_start "inject handover $best"
 
 VNX_J="$input" VNX_HFILE="$best" VNX_LEDGER="$VNX_HANDOVERS/ledger.jsonl" python3 - <<'PY'

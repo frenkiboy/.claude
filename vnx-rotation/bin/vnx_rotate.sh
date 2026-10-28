@@ -22,6 +22,15 @@ if [ -z "$pane" ]; then
     exit 0
 fi
 
+# Pane-scoped claim: the resumed session in THIS pane must inject THIS handover,
+# even if other sessions are rotating concurrently. SessionStart reads its own
+# $TMUX_PANE, matches this claim, and consumes it. TTL-guarded on read.
+if [ -n "$hfile" ] && [ -f "$hfile" ]; then
+    pkey="$(printf '%s' "$pane" | tr -c 'A-Za-z0-9' '_')"
+    printf '%s' "$hfile" > "$VNX_STATE/pane-${pkey}.handover" 2>/dev/null || true
+    vnx_log rotate "claim pane=$pane -> $hfile"
+fi
+
 # Let the just-ended turn settle, then clear. Record a baseline so we can
 # detect the SessionStart that /clear produces.
 sleep 1

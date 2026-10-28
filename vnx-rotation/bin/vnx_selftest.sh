@@ -10,12 +10,16 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export VNX_CONTEXT_ROTATION_ENABLED=1
 SID="SELFTEST-$$"
 HF="$VNX_HANDOVERS/${SID}.md"
+PFAKE="%VNXST$$"                                             # unique fake pane
+PFKEY="$(printf '%s' "$PFAKE" | tr -c 'A-Za-z0-9' '_')"
 PASS=0; FAIL=0
 ok()   { PASS=$((PASS+1)); printf '  PASS  %s\n' "$1"; }
 bad()  { FAIL=$((FAIL+1)); printf '  FAIL  %s\n' "$1"; }
 
 cleanup() {
-    rm -f "$HF" "$VNX_STATE/${SID}."* 2>/dev/null
+    rm -f "$VNX_HANDOVERS/${SID}"*.md "$VNX_STATE/${SID}."* 2>/dev/null
+    rm -f "$VNX_STATE"/pane-*STA"$$".handover "$VNX_STATE"/pane-*STB"$$".handover 2>/dev/null
+    rm -f "$VNX_STATE/pane-${PFKEY}.handover" 2>/dev/null
     rm -rf "$VNX_LOCKS/${SID}.lock" 2>/dev/null
     # Drop the SELFTEST line(s) this run appended to the ledger. grep -v exits 1
     # when it removes every line (empty result) — that is success here, so accept
@@ -31,7 +35,7 @@ trap cleanup EXIT
 
 mkdir -p "$VNX_STATE" "$VNX_HANDOVERS" "$VNX_LOCKS" 2>/dev/null || true
 inp() { printf '{"session_id":"%s","tool_name":"%s","tool_input":{"file_path":"%s"}}' "$SID" "${1:-}" "${2:-}"; }
-set_pct() { printf 'PCT=%s\nPANE=none\nTS=1\n' "$1" > "$VNX_STATE/${SID}.env"; }
+set_pct() { printf 'PCT=%s\nPANE=%s\nTS=1\n' "$1" "$PFAKE" > "$VNX_STATE/${SID}.env"; }
 
 echo "vnx self-test (sid=$SID, no real pane)"
 
@@ -93,6 +97,7 @@ inp | bash "$DIR/vnx_stop.sh" 2>/dev/null
 sleep 1
 [ ! -f "$VNX_STATE/${SID}.pending" ] && ok "stop passes gates at 90% (rotator launched)" || bad "stop blocked a valid rotation"
 rm -rf "$VNX_LOCKS/${SID}.lock"
+rm -f "$VNX_STATE/pane-${PFKEY}.handover"   # drop the claim its failed /clear left
 
 # 9. Stop suppresses rotation for a pinned session.
 set_pct 90; touch "$VNX_STATE/${SID}.pin"
@@ -110,6 +115,23 @@ if [ -f "$VNX_HANDOVERS/ledger.jsonl" ] && grep -q "\"${SID}-NEW\"" "$VNX_HANDOV
     ok "provenance ledger line written (to_sid recorded)"
 else
     bad "provenance ledger line missing"
+fi
+
+# 11. Concurrent rotations route by pane (no swap between two sessions).
+hA="$VNX_HANDOVERS/${SID}-A.md"; hB="$VNX_HANDOVERS/${SID}-B.md"
+printf '# ROTATION-HANDOVER\n**Session-ID**: %s-A\n**Context-Used**: 50%%\n**Threshold**: 45%%\n## Next Steps for Incoming Context\n1. AAA\n' "$SID" > "$hA"
+printf '# ROTATION-HANDOVER\n**Session-ID**: %s-B\n**Context-Used**: 50%%\n**Threshold**: 45%%\n## Next Steps for Incoming Context\n1. BBB\n' "$SID" > "$hB"
+paneA='%STA'"$$"; paneB='%STB'"$$"
+keyA="$(printf '%s' "$paneA" | tr -c 'A-Za-z0-9' '_')"; keyB="$(printf '%s' "$paneB" | tr -c 'A-Za-z0-9' '_')"
+printf '%s' "$hA" > "$VNX_STATE/pane-${keyA}.handover"
+printf '%s' "$hB" > "$VNX_STATE/pane-${keyB}.handover"
+outA="$(printf '{"session_id":"%s-rA"}' "$SID" | TMUX_PANE="$paneA" bash "$DIR/vnx_session_start.sh" 2>/dev/null)"
+outB="$(printf '{"session_id":"%s-rB"}' "$SID" | TMUX_PANE="$paneB" bash "$DIR/vnx_session_start.sh" 2>/dev/null)"
+if echo "$outA" | grep -q "${SID}-A" && ! echo "$outA" | grep -q "${SID}-B" \
+   && echo "$outB" | grep -q "${SID}-B" && ! echo "$outB" | grep -q "${SID}-A"; then
+    ok "concurrent: each pane injects its own handover (no swap)"
+else
+    bad "concurrent rotations crossed handovers"
 fi
 
 echo "----"

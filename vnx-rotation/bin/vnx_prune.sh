@@ -20,6 +20,15 @@ if [ -d "$VNX_HANDOVERS" ]; then
     done
 fi
 
+# --- Stale pane claims: a rotation that never resumed leaves a claim behind. --
+if [ -d "$VNX_STATE" ]; then
+    now="$(vnx_now)"
+    for pc in "$VNX_STATE"/pane-*.handover; do
+        [ -f "$pc" ] || continue
+        [ $(( now - $(vnx_mtime "$pc") )) -ge "$VNX_TTL" ] && rm -f "$pc" 2>/dev/null
+    done
+fi
+
 # --- rotation.log: keep the last N lines. ------------------------------------
 if [ -f "$VNX_LOG" ]; then
     lines="$(wc -l < "$VNX_LOG" 2>/dev/null || echo 0)"
