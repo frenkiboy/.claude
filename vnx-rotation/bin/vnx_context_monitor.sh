@@ -36,18 +36,20 @@ case "$tool" in
     Write|Edit|MultiEdit|NotebookEdit|Read|TodoWrite) exit 0 ;;
 esac
 
-# Deny ONCE per session. We force a handover the first time a session crosses
-# the threshold, then never block it again. Otherwise, if the user keeps sending
-# messages before the /clear fires, every turn is denied and the agent re-writes
-# the handover with no progress — a livelock. One handover is the safety net;
-# the rotation still happens whenever the agent next goes idle (Stop hook), or
-# the user can /clear manually. The marker is keyed by sid, so it's gone after a
-# /clear (fresh sid) and blocking correctly arms again for the next session.
-req="$VNX_STATE/${sid}.handover_requested"
-[ -f "$req" ] && exit 0
-# Belt-and-suspenders: if a handover file already exists for this sid (marker
-# lost, or detector tagged it), treat the rotation as in flight and don't block.
-[ -f "$VNX_HANDOVERS/${sid}.md" ] && exit 0
+# Bounded nudging. Blocking forever livelocks (the user keeps messaging before
+# the /clear fires); blocking exactly once gives rotation a single shot at the
+# race. So nudge up to VNX_MAX_NUDGES times, each at least VNX_NUDGE_COOLDOWN
+# seconds apart, then fail open. Each nudge forces a handover + idle = one more
+# rotation attempt; the cooldown lets the current work finish (and the rotation
+# fire) without re-blocking the very next message. Counter is per-sid, so it's
+# gone after a /clear (fresh sid) and nudging re-arms for the next session.
+df="$VNX_STATE/${sid}.deny"
+dcount=0; dlast=0
+[ -f "$df" ] && read -r dcount dlast < "$df" 2>/dev/null
+[ -n "$dcount" ] || dcount=0; [ -n "$dlast" ] || dlast=0
+nowt="$(vnx_now)"
+[ "$dcount" -ge "$VNX_MAX_NUDGES" ] 2>/dev/null && exit 0          # nudged enough → fail open
+[ $(( nowt - dlast )) -lt "$VNX_NUDGE_COOLDOWN" ] 2>/dev/null && exit 0  # within cooldown → let it run
 
 hpath="$VNX_HANDOVERS/${sid}.md"
 created_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -73,11 +75,11 @@ The file MUST begin with the literal marker line and follow this structure:
 
 After you write this file and end your turn, the session will AUTOMATICALLY clear and resume with this handover injected. Be concrete — vague handovers lose work. Write the file now, then stop.
 
-This block fires ONCE per session: after the handover is written you will not be blocked again, so if more messages arrive before the rotation fires, just continue the work normally. If it still has not rotated, tell the user they can run /clear to rotate immediately."
+The system nudges at most ${VNX_MAX_NUDGES} times per session (this is nudge $((dcount + 1))), spaced out, then stops blocking — you will not be stuck in a loop. After you write the handover and end your turn the rotation fires on idle; if more messages arrive first, just continue the work. If it still has not rotated, tell the user they can run /clear to rotate immediately."
 
-# Mark that we've forced a handover for this session, so we never block it again.
-touch "$req" 2>/dev/null || true
-vnx_log monitor "deny ${pcti}% tool=$tool sid=$sid -> expect $hpath (deny-once armed)"
+# Record this nudge (count + timestamp) so we bound retries and honour cooldown.
+printf '%s %s' "$((dcount + 1))" "$nowt" > "$df" 2>/dev/null || true
+vnx_log monitor "deny ${pcti}% tool=$tool sid=$sid nudge=$((dcount + 1))/${VNX_MAX_NUDGES}"
 
 VNX_R="$reason" python3 - <<'PY'
 import json, os

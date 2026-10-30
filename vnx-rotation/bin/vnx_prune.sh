@@ -29,11 +29,11 @@ if [ -d "$VNX_STATE" ]; then
     done
 fi
 
-# --- Deny-once markers: drop them for sessions with no sensor file (dead). ---
+# --- Nudge counters: drop them for sessions with no sensor file (dead). ------
 if [ -d "$VNX_STATE" ]; then
-    for m in "$VNX_STATE"/*.handover_requested; do
+    for m in "$VNX_STATE"/*.deny; do
         [ -f "$m" ] || continue
-        sid="$(basename "$m" .handover_requested)"
+        sid="$(basename "$m" .deny)"
         [ -f "$VNX_STATE/${sid}.env" ] || rm -f "$m" 2>/dev/null
     done
 fi

@@ -9,6 +9,8 @@ VNX_THRESHOLD="${VNX_ROTATION_THRESHOLD:-45}"   # % context-used at which to rot
 VNX_TTL="${VNX_ROTATION_TTL:-300}"              # seconds: lock/handover freshness
 VNX_KEEP_HANDOVERS="${VNX_KEEP_HANDOVERS:-50}"  # prune: handover docs to retain
 VNX_LOG_MAXLINES="${VNX_LOG_MAXLINES:-2000}"    # prune: rotation.log line cap
+VNX_MAX_NUDGES="${VNX_MAX_NUDGES:-3}"           # times to force a handover before failing open
+VNX_NUDGE_COOLDOWN="${VNX_NUDGE_COOLDOWN:-120}" # min seconds between nudges
 
 # Enabled unless env explicitly disables. On if ENABLED file present OR env==1.
 vnx_enabled() {

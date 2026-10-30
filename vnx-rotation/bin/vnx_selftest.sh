@@ -44,21 +44,31 @@ set_pct 90
 out="$(inp Bash | bash "$DIR/vnx_context_monitor.sh" 2>/dev/null)"
 echo "$out" | grep -q '"permissionDecision": "deny"' && ok "monitor denies at 90%" || bad "monitor should deny at 90%"
 
-# 1b. Deny-once: a second over-threshold turn is allowed (no livelock).
-rm -f "$VNX_STATE/${SID}.handover_requested"
+# 1b. Bounded nudging: deny up to MAX, then fail open (cooldown disabled here).
+mon() { inp Bash | VNX_MAX_NUDGES="$1" VNX_NUDGE_COOLDOWN="$2" bash "$DIR/vnx_context_monitor.sh" 2>/dev/null; }
+deny_q() { echo "$1" | grep -q '"permissionDecision": "deny"'; }
 set_pct 90
-o1="$(inp Bash | bash "$DIR/vnx_context_monitor.sh" 2>/dev/null)"
-o2="$(inp Bash | bash "$DIR/vnx_context_monitor.sh" 2>/dev/null)"
-if echo "$o1" | grep -q '"permissionDecision": "deny"' && [ -z "$o2" ]; then
-    ok "deny-once then bypass (no re-block loop)"
+rm -f "$VNX_STATE/${SID}.deny"
+d1="$(mon 2 0)"; d2="$(mon 2 0)"; d3="$(mon 2 0)"
+if deny_q "$d1" && deny_q "$d2" && [ -z "$d3" ]; then
+    ok "bounded nudging: MAX=2 denies twice then fails open"
 else
-    bad "deny-once bypass failed (o1 deny / o2 empty expected)"
+    bad "bounded nudging wrong (expected deny,deny,allow)"
 fi
-rm -f "$VNX_STATE/${SID}.handover_requested" "$VNX_HANDOVERS/${SID}.md"
+
+# 1c. Cooldown: a second nudge within the window is suppressed.
+rm -f "$VNX_STATE/${SID}.deny"
+c1="$(mon 5 999)"; c2="$(mon 5 999)"
+if deny_q "$c1" && [ -z "$c2" ]; then
+    ok "cooldown suppresses immediate re-nudge"
+else
+    bad "cooldown failed (expected deny then allow)"
+fi
+rm -f "$VNX_STATE/${SID}.deny" "$VNX_HANDOVERS/${SID}.md"
 
 # 2. Monitor allows when below threshold.
 set_pct 10
-rm -f "$VNX_STATE/${SID}.handover_requested"
+rm -f "$VNX_STATE/${SID}.deny"
 out="$(inp Bash | bash "$DIR/vnx_context_monitor.sh" 2>/dev/null)"
 [ -z "$out" ] && ok "monitor allows at 10%" || bad "monitor should allow at 10%"
 

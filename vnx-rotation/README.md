@@ -67,6 +67,8 @@ the Stop hook (no `/clear`) skip that one session until you `vnx unpin`.
 - `VNX_ROTATION_TTL` — seconds for lock/handover freshness (default `300`)
 - `VNX_KEEP_HANDOVERS` — handover docs to retain when pruning (default `50`)
 - `VNX_LOG_MAXLINES` — `rotation.log` line cap when pruning (default `2000`)
+- `VNX_MAX_NUDGES` — times to force a handover before failing open (default `3`)
+- `VNX_NUDGE_COOLDOWN` — min seconds between nudges (default `120`)
 
 ## Safety gates (why a false rotation can't `/clear` you)
 
@@ -124,13 +126,16 @@ git-ignored (per-machine runtime, not version-controlled).
   and aborts (no auto-clear) — the handover is still written and injected on your
   next manual `/clear`.
 - ~1–2s tmux timing race remains possible right after `/clear`.
-- **Deny-once (no livelock).** The monitor blocks and demands a handover only the
-  FIRST time a session crosses the threshold (it drops a `state/<sid>.handover_requested`
-  marker). After that the session is never blocked again, so sending another
-  message before the `/clear` fires lets the work continue instead of looping on
-  re-written handovers. The rotation still fires when the agent next goes idle;
-  if it hasn't, `/clear` manually. The marker is per-sid, so blocking re-arms for
-  the fresh session after a rotation.
+- **Bounded nudging (no livelock).** The monitor forces a handover at most
+  `VNX_MAX_NUDGES` times per session (default 3), each at least
+  `VNX_NUDGE_COOLDOWN` seconds apart (default 120), then stops blocking. Each
+  nudge = one handover + idle = one rotation attempt, so the `/clear` gets
+  several chances to win the race against your next message; the cooldown gives
+  a grace window after each nudge so rapid messages aren't all blocked. After the
+  budget is spent the session runs unblocked (the handover is the safety net);
+  the rotation still fires on the next idle, or `/clear` manually. The counter is
+  per-sid (`state/<sid>.deny`), so it resets for the fresh session after a
+  rotation; `vnx prune` sweeps counters for dead sessions.
 - Active skill state is lost on `/clear`; the rotator re-runs `/<skill>` if the
   handover has an `**Active-Skill**:` line (else skips).
 - Multi-terminal: state is keyed by `session_id`; a `default.env` fallback exists
