@@ -44,8 +44,21 @@ set_pct 90
 out="$(inp Bash | bash "$DIR/vnx_context_monitor.sh" 2>/dev/null)"
 echo "$out" | grep -q '"permissionDecision": "deny"' && ok "monitor denies at 90%" || bad "monitor should deny at 90%"
 
+# 1b. Deny-once: a second over-threshold turn is allowed (no livelock).
+rm -f "$VNX_STATE/${SID}.handover_requested"
+set_pct 90
+o1="$(inp Bash | bash "$DIR/vnx_context_monitor.sh" 2>/dev/null)"
+o2="$(inp Bash | bash "$DIR/vnx_context_monitor.sh" 2>/dev/null)"
+if echo "$o1" | grep -q '"permissionDecision": "deny"' && [ -z "$o2" ]; then
+    ok "deny-once then bypass (no re-block loop)"
+else
+    bad "deny-once bypass failed (o1 deny / o2 empty expected)"
+fi
+rm -f "$VNX_STATE/${SID}.handover_requested" "$VNX_HANDOVERS/${SID}.md"
+
 # 2. Monitor allows when below threshold.
 set_pct 10
+rm -f "$VNX_STATE/${SID}.handover_requested"
 out="$(inp Bash | bash "$DIR/vnx_context_monitor.sh" 2>/dev/null)"
 [ -z "$out" ] && ok "monitor allows at 10%" || bad "monitor should allow at 10%"
 

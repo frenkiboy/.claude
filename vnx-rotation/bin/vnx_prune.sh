@@ -29,6 +29,15 @@ if [ -d "$VNX_STATE" ]; then
     done
 fi
 
+# --- Deny-once markers: drop them for sessions with no sensor file (dead). ---
+if [ -d "$VNX_STATE" ]; then
+    for m in "$VNX_STATE"/*.handover_requested; do
+        [ -f "$m" ] || continue
+        sid="$(basename "$m" .handover_requested)"
+        [ -f "$VNX_STATE/${sid}.env" ] || rm -f "$m" 2>/dev/null
+    done
+fi
+
 # --- rotation.log: keep the last N lines. ------------------------------------
 if [ -f "$VNX_LOG" ]; then
     lines="$(wc -l < "$VNX_LOG" 2>/dev/null || echo 0)"

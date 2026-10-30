@@ -36,15 +36,18 @@ case "$tool" in
     Write|Edit|MultiEdit|NotebookEdit|Read|TodoWrite) exit 0 ;;
 esac
 
-# If a fresh handover already exists, rotation is in-flight — don't keep blocking.
-ptr="$VNX_STATE/${sid}.handover"
-if [ -f "$ptr" ]; then
-    hf="$(cat "$ptr" 2>/dev/null)"
-    if [ -n "$hf" ] && [ -f "$hf" ]; then
-        age=$(( $(vnx_now) - $(vnx_mtime "$hf") ))
-        [ "$age" -lt "$VNX_TTL" ] && exit 0
-    fi
-fi
+# Deny ONCE per session. We force a handover the first time a session crosses
+# the threshold, then never block it again. Otherwise, if the user keeps sending
+# messages before the /clear fires, every turn is denied and the agent re-writes
+# the handover with no progress — a livelock. One handover is the safety net;
+# the rotation still happens whenever the agent next goes idle (Stop hook), or
+# the user can /clear manually. The marker is keyed by sid, so it's gone after a
+# /clear (fresh sid) and blocking correctly arms again for the next session.
+req="$VNX_STATE/${sid}.handover_requested"
+[ -f "$req" ] && exit 0
+# Belt-and-suspenders: if a handover file already exists for this sid (marker
+# lost, or detector tagged it), treat the rotation as in flight and don't block.
+[ -f "$VNX_HANDOVERS/${sid}.md" ] && exit 0
 
 hpath="$VNX_HANDOVERS/${sid}.md"
 created_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -68,9 +71,13 @@ The file MUST begin with the literal marker line and follow this structure:
 ## Next Steps for Incoming Context
 1. <concrete next action: exact file paths, PIDs, ports, commands>
 
-After you write this file and end your turn, the session will AUTOMATICALLY clear and resume with this handover injected. Be concrete — vague handovers lose work. Write the file now, then stop."
+After you write this file and end your turn, the session will AUTOMATICALLY clear and resume with this handover injected. Be concrete — vague handovers lose work. Write the file now, then stop.
 
-vnx_log monitor "deny ${pcti}% tool=$tool sid=$sid -> expect $hpath"
+This block fires ONCE per session: after the handover is written you will not be blocked again, so if more messages arrive before the rotation fires, just continue the work normally. If it still has not rotated, tell the user they can run /clear to rotate immediately."
+
+# Mark that we've forced a handover for this session, so we never block it again.
+touch "$req" 2>/dev/null || true
+vnx_log monitor "deny ${pcti}% tool=$tool sid=$sid -> expect $hpath (deny-once armed)"
 
 VNX_R="$reason" python3 - <<'PY'
 import json, os

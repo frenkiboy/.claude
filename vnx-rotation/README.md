@@ -124,6 +124,13 @@ git-ignored (per-machine runtime, not version-controlled).
   and aborts (no auto-clear) — the handover is still written and injected on your
   next manual `/clear`.
 - ~1–2s tmux timing race remains possible right after `/clear`.
+- **Deny-once (no livelock).** The monitor blocks and demands a handover only the
+  FIRST time a session crosses the threshold (it drops a `state/<sid>.handover_requested`
+  marker). After that the session is never blocked again, so sending another
+  message before the `/clear` fires lets the work continue instead of looping on
+  re-written handovers. The rotation still fires when the agent next goes idle;
+  if it hasn't, `/clear` manually. The marker is per-sid, so blocking re-arms for
+  the fresh session after a rotation.
 - Active skill state is lost on `/clear`; the rotator re-runs `/<skill>` if the
   handover has an `**Active-Skill**:` line (else skips).
 - Multi-terminal: state is keyed by `session_id`; a `default.env` fallback exists
